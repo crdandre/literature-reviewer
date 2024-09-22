@@ -1,0 +1,273 @@
+{
+    "languages": null,
+    "filetype": "pdf",
+    "toc": [
+        {
+            "title": "Automated design of\u00a0nighttime braces for\u00a0adolescent idiopathic scoliosis with\u00a0global shape optimization using a\u00a0patient-specific finite element model",
+            "level": 0,
+            "is_closed": false,
+            "n_kids": 18,
+            "page_index": 0,
+            "view_mode": "XYZ",
+            "view_pos": [
+                155.0,
+                657.0,
+                0.0
+            ]
+        },
+        {
+            "title": "Methods",
+            "level": 1,
+            "is_closed": false,
+            "n_kids": 13,
+            "page_index": 1,
+            "view_mode": "XYZ",
+            "view_pos": [
+                155.0,
+                95.0,
+                0.0
+            ]
+        },
+        {
+            "title": "Cases and initial data for clinical validation",
+            "level": 2,
+            "is_closed": null,
+            "n_kids": 0,
+            "page_index": 1,
+            "view_mode": "XYZ",
+            "view_pos": [
+                155.0,
+                84.0,
+                0.0
+            ]
+        },
+        {
+            "title": "Creation of the patient-specific FEM",
+            "level": 2,
+            "is_closed": null,
+            "n_kids": 0,
+            "page_index": 2,
+            "view_mode": "XYZ",
+            "view_pos": [
+                155.0,
+                575.0,
+                0.0
+            ]
+        },
+        {
+            "title": "Automatic generation of braces",
+            "level": 2,
+            "is_closed": false,
+            "n_kids": 2,
+            "page_index": 2,
+            "view_mode": "XYZ",
+            "view_pos": [
+                155.0,
+                413.0,
+                0.0
+            ]
+        },
+        {
+            "title": "Initial brace definition",
+            "level": 3,
+            "is_closed": null,
+            "n_kids": 0,
+            "page_index": 2,
+            "view_mode": "XYZ",
+            "view_pos": [
+                155.0,
+                402.0,
+                0.0
+            ]
+        },
+        {
+            "title": "Optimization-modified brace shapes",
+            "level": 3,
+            "is_closed": null,
+            "n_kids": 0,
+            "page_index": 3,
+            "view_mode": "XYZ",
+            "view_pos": [
+                155.0,
+                516.0,
+                0.0
+            ]
+        },
+        {
+            "title": "Evaluation of brace biomechanical effectiveness",
+            "level": 2,
+            "is_closed": false,
+            "n_kids": 4,
+            "page_index": 4,
+            "view_mode": "XYZ",
+            "view_pos": [
+                155.0,
+                354.0,
+                0.0
+            ]
+        },
+        {
+            "title": "Standing out-of-brace simulation including gravitational loads (OOB)",
+            "level": 3,
+            "is_closed": null,
+            "n_kids": 0,
+            "page_index": 4,
+            "view_mode": "XYZ",
+            "view_pos": [
+                155.0,
+                301.0,
+                0.0
+            ]
+        },
+        {
+            "title": "Nighttime in-brace simulation in the supine position (IB)",
+            "level": 3,
+            "is_closed": null,
+            "n_kids": 0,
+            "page_index": 4,
+            "view_mode": "XYZ",
+            "view_pos": [
+                155.0,
+                189.0,
+                0.0
+            ]
+        },
+        {
+            "title": "Growth simulation",
+            "level": 3,
+            "is_closed": null,
+            "n_kids": 0,
+            "page_index": 5,
+            "view_mode": "XYZ",
+            "view_pos": [
+                155.0,
+                485.0,
+                0.0
+            ]
+        },
+        {
+            "title": "Objective function",
+            "level": 3,
+            "is_closed": null,
+            "n_kids": 0,
+            "page_index": 5,
+            "view_mode": "XYZ",
+            "view_pos": [
+                155.0,
+                202.0,
+                0.0
+            ]
+        },
+        {
+            "title": "Optimization process",
+            "level": 2,
+            "is_closed": null,
+            "n_kids": 0,
+            "page_index": 6,
+            "view_mode": "XYZ",
+            "view_pos": [
+                155.0,
+                174.0,
+                0.0
+            ]
+        },
+        {
+            "title": "Brace manufacturing and clinical evaluation",
+            "level": 2,
+            "is_closed": null,
+            "n_kids": 0,
+            "page_index": 7,
+            "view_mode": "XYZ",
+            "view_pos": [
+                155.0,
+                634.0,
+                0.0
+            ]
+        },
+        {
+            "title": "Statistical analyses",
+            "level": 2,
+            "is_closed": null,
+            "n_kids": 0,
+            "page_index": 7,
+            "view_mode": "XYZ",
+            "view_pos": [
+                155.0,
+                492.0,
+                0.0
+            ]
+        },
+        {
+            "title": "Results",
+            "level": 1,
+            "is_closed": null,
+            "n_kids": 0,
+            "page_index": 7,
+            "view_mode": "XYZ",
+            "view_pos": [
+                155.0,
+                431.0,
+                0.0
+            ]
+        },
+        {
+            "title": "Discussion",
+            "level": 1,
+            "is_closed": null,
+            "n_kids": 0,
+            "page_index": 8,
+            "view_mode": "XYZ",
+            "view_pos": [
+                155.0,
+                250.0,
+                0.0
+            ]
+        },
+        {
+            "title": "References",
+            "level": 1,
+            "is_closed": null,
+            "n_kids": 0,
+            "page_index": 10,
+            "view_mode": "XYZ",
+            "view_pos": [
+                155.0,
+                275.0,
+                0.0
+            ]
+        },
+        {
+            "title": "Acknowledgements",
+            "level": 1,
+            "is_closed": null,
+            "n_kids": 0,
+            "page_index": 12,
+            "view_mode": "XYZ",
+            "view_pos": [
+                155.0,
+                420.0,
+                0.0
+            ]
+        }
+    ],
+    "pages": 10,
+    "ocr_stats": {
+        "ocr_pages": 0,
+        "ocr_failed": 0,
+        "ocr_success": 0,
+        "ocr_engine": "none"
+    },
+    "block_stats": {
+        "header_footer": 0,
+        "code": 0,
+        "table": 1,
+        "equations": {
+            "successful_ocr": 15,
+            "unsuccessful_ocr": 1,
+            "equations": 16
+        }
+    },
+    "postprocess_stats": {
+        "edit": {}
+    }
+}

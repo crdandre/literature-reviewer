@@ -17,3 +17,6 @@
 
 # Python egg-info directories
 **/*.egg-info/
+
+# Local PDF files
+**/input_pdfs/
