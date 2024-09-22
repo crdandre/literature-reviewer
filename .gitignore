@@ -1,0 +1,19 @@
+# Ignore private notes
+**/private_notes.md
+
+# Environment variables
+**/.env
+
+# Virtual environments
+**/.venv/
+**/venv/
+**/env/
+
+# Python cache files
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Python egg-info directories
+**/*.egg-info/
