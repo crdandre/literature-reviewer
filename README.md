@@ -59,3 +59,6 @@ Similarly, the steps that would make sense in this case are:
 ### More ways to guide the output of these parsing steps
 - LLM checking out an image of the pdf vs the listed section headings and titles, and checking the high level things (modifying the md and json files accordingly)
 - Cleaning all non-printable characters (i.e. non-space "orange-box" characters as well to keep data as consistent and clean as possible)
+
+### Agent frameworks
+- [sentient](https://www.youtube.com/watch?v=0J3vKJVBQBA)
