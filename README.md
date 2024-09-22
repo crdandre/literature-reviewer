@@ -62,3 +62,4 @@ Similarly, the steps that would make sense in this case are:
 
 ### Agent frameworks
 - [sentient](https://github.com/sentient-engineering/sentient)
+- watch [this comparison](https://www.youtube.com/watch?v=6eDh7scJgdw) between CrewAI, AutoGen, LangGraph, and Agent Zero
