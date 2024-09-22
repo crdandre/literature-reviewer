@@ -55,6 +55,12 @@ Similarly, the steps that would make sense in this case are:
     - Yet to try. Seems only cloud-based...
 - [unstructured](https://github.com/Unstructured-IO/unstructured)
     - Yet to try. Seems related.
+ 
+### Optimized RAG Frameworks instead of custom PDF Parsing?
+- [PaperQA2](https://github.com/Future-House/paper-qa?tab=readme-ov-file)
+
+### Other scraping
+- [paper-scraper](https://github.com/blackadad/paper-scraper)
 
 ### More ways to guide the output of these parsing steps
 - LLM checking out an image of the pdf vs the listed section headings and titles, and checking the high level things (modifying the md and json files accordingly)
