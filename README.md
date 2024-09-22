@@ -61,4 +61,4 @@ Similarly, the steps that would make sense in this case are:
 - Cleaning all non-printable characters (i.e. non-space "orange-box" characters as well to keep data as consistent and clean as possible)
 
 ### Agent frameworks
-- [sentient](https://www.youtube.com/watch?v=0J3vKJVBQBA)
+- [sentient](https://github.com/sentient-engineering/sentient)
