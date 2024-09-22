@@ -55,6 +55,12 @@ Similarly, the steps that would make sense in this case are:
     - Yet to try. Seems only cloud-based...
 - [unstructured](https://github.com/Unstructured-IO/unstructured)
     - Yet to try. Seems related.
+ 
+### Optimized RAG Frameworks instead of custom PDF Parsing?
+- [PaperQA2](https://github.com/Future-House/paper-qa?tab=readme-ov-file)
+
+### Other scraping
+- [paper-scraper](https://github.com/blackadad/paper-scraper)
 
 ### More ways to guide the output of these parsing steps
 - LLM checking out an image of the pdf vs the listed section headings and titles, and checking the high level things (modifying the md and json files accordingly)
@@ -63,3 +69,7 @@ Similarly, the steps that would make sense in this case are:
 ### Search strategies
 - By subject/keyword sets
 - By top N authors in keyword search, and then searching all of their publications and all of their top N most-cited collaborators' publications for similar / relevant content
+
+### Agent frameworks
+- [sentient](https://github.com/sentient-engineering/sentient)
+- watch [this comparison](https://www.youtube.com/watch?v=6eDh7scJgdw) between CrewAI, AutoGen, LangGraph, and Agent Zero
