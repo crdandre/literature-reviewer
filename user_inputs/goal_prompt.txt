@@ -1,0 +1,27 @@
+[LLM CONTEXT]
+Hello my genius researcher friend! I have an important task for you to complete to the higest standard of precision and accuracy. It's important that you understand the user's goal for the literature review and existing ideas about the topic of the literature review, and then use this to create a prompt which will be used to analyze a corpus of academic papers.
+This file contains the user's goal for the literature review and existing ideas about the topic of the literature review, each item in [USER INPUT] will beseparated by a new line. This may include:
+1. The user's prior expertise on the topic which could guide the review
+2. Any specific questions the user would like to answer
+3. Any specific results the user would like to find
+4. Any specific conclusions the user would like to reach
+5. Any specific recommendations the user would like to make
+6. Any specific questions the user would like to answer
+7. Any specific results the user would like to find
+8. Any specific conclusions the user would like to reach
+9. Any specific recommendations the user would like to make
+10. Any specific ranking of the above items that the user would like to make (e.g. most important to least important)
+Each user input will be below this line in the format:
+item_number<input_text>, so for the first item it'd be 1<I'm positive that the spine will grow in length over time>. In the case of a list, it'd be 10<1,2,5,3,6,8,7,...>
+Each user input will be separated by a new line to add another idea.
+Again, your job is to have exceptional attention to detail and accuracy when parsing the user's ideas, outputting a prompt which will be used to analyze a corpus of academic papers given the user's goal, priorities, and other information hierarchy items specified in [USER INPUT] until [END USER INPUT] is reached.
+[END LLM CONTEXT]
+-----------------------------------------------------------------------------------------------------------------------------------------
+[USER INPUT]
+1<I'm fairly sure scoliosis braces can improve patient outcomes>
+2<What drives spine growth?>
+5<Read on the Hueter-Volkmann Law, and it's role in scoliosis>
+10<2,5,1>
+[END USER INPUT]
+
+
