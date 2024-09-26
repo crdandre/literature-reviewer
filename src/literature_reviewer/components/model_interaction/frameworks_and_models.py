@@ -18,7 +18,10 @@ class Model:
 
 
 MODELS = {
+    #chat
     "gpt-4o-mini": Model("gpt-4o-mini", "OpenAI"),
+    #embedding
+    "text-embedding-3-small": Model("text-embedding-3-small", "OpenAI")
 }
 
 

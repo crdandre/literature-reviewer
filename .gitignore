@@ -25,4 +25,4 @@
 **/sample_outputs/
 
 # ell logdir
-.logdir/
+logdir/

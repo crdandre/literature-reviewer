@@ -8,7 +8,7 @@ from literature_reviewer.components.model_interaction.frameworks_and_models impo
     PromptFramework, Model, get_models_for_provider
 )
 
-class LLMInterface:
+class ChatInterface:
     def __init__(
         self,
         prompt_framework: PromptFramework,
@@ -22,7 +22,7 @@ class LLMInterface:
         module_name = self.prompt_framework.value.lower()
         return import_module(f"literature_reviewer.components.model_interaction.{module_name}")
     
-    def entry_call(
+    def entry_chat_call(
         self,
         system_prompt,
         task_prompt
@@ -41,6 +41,18 @@ class LLMInterface:
                 model=self.model.model_name,
                 system=system_prompt,
                 task=task_prompt
+            )
+        else:
+            raise NotImplementedError(f"Framework {self.prompt_framework} not implemented yet")
+
+    def embed(self, text: str) -> list[float]:
+        """
+        Calls an embedding model API using the specified prompt framework and provider.
+        """
+        if self.prompt_framework == PromptFramework.ELL:
+            return self.framework_module.embed(
+                model=self.model.model_name,
+                text=text
             )
         else:
             raise NotImplementedError(f"Framework {self.prompt_framework} not implemented yet")

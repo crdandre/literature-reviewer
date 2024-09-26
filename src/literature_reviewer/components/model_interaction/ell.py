@@ -5,7 +5,7 @@ ell framework.
 This should inject prompts defined in prompts/ rather than
 contain its own
 
-entry_call is a simple system,user call. In the future,
+entry_chat_call is a simple system,user call. In the future,
 it may be useful to have this be the entry-point where
 a decision about the optimal prompt type can be made
 """
@@ -18,7 +18,7 @@ ell.init(store="./logdir", autocommit=True)
 # MODEL = "llama3.1:latest"
 # ell.models.ollama.register(OLLAMA_HOST)
 
-def entry_call(model, system, task):
+def entry_chat_call(model, system, task):
     
     @ell.simple(model=model)
     def _call(system, task):
