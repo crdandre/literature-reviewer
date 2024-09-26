@@ -3,7 +3,7 @@ import json
 import os
 load_dotenv()
 
-from literature_reviewer.literature_search.semantic_scholar import SemanticScholarInterface
+from literature_reviewer.data_ingestion.semantic_scholar import SemanticScholarInterface
 
 TEST_DIRECT_REQUESTS=False
 

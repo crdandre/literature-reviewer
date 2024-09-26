@@ -23,3 +23,6 @@
 
 # Reference files
 **/sample_outputs/
+
+# ell logdir
+.logdir/

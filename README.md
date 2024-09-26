@@ -58,6 +58,7 @@ Similarly, the steps that would make sense in this case are:
  
 ### Optimized RAG Frameworks instead of custom PDF Parsing?
 - [PaperQA2](https://github.com/Future-House/paper-qa?tab=readme-ov-file)
+- [ActiveRAG](https://github.com/OpenMatch/ActiveRAG)
 
 ### Other scraping
 - [paper-scraper](https://github.com/blackadad/paper-scraper)
@@ -73,3 +74,4 @@ Similarly, the steps that would make sense in this case are:
 ### Agent frameworks
 - [sentient](https://github.com/sentient-engineering/sentient)
 - watch [this comparison](https://www.youtube.com/watch?v=6eDh7scJgdw) between CrewAI, AutoGen, LangGraph, and Agent Zero
+- [show-me](https://github.com/marlaman/show-me.git)
