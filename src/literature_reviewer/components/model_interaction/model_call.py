@@ -7,8 +7,9 @@ from importlib import import_module
 from literature_reviewer.components.model_interaction.frameworks_and_models import ( #noqa
     PromptFramework, Model, get_models_for_provider
 )
+from typing import Union, List
 
-class ChatInterface:
+class ModelInterface:
     def __init__(
         self,
         prompt_framework: PromptFramework,
@@ -18,9 +19,11 @@ class ChatInterface:
         self.model = model
         self.framework_module = self._import_framework_module()
     
+    
     def _import_framework_module(self):
         module_name = self.prompt_framework.value.lower()
         return import_module(f"literature_reviewer.components.model_interaction.{module_name}")
+    
     
     def entry_chat_call(
         self,
@@ -37,25 +40,45 @@ class ChatInterface:
         such as ell.py
         """
         if self.prompt_framework == PromptFramework.ELL:
-            return self.framework_module.entry_call(
+            return self.framework_module.entry_chat_call(
                 model=self.model.model_name,
                 system=system_prompt,
                 task=task_prompt
             )
+        if self.prompt_framework == PromptFramework.OAI_API:
+            return self.framework_module.entry_chat_call(
+                model_choice=self.model,
+                system=system_prompt,
+                task=task_prompt
+            ) 
         else:
             raise NotImplementedError(f"Framework {self.prompt_framework} not implemented yet")
 
-    def embed(self, text: str) -> list[float]:
+
+    def embed(self, texts: Union[str, List[str]]) -> Union[List[float], List[List[float]]]:
         """
         Calls an embedding model API using the specified prompt framework and provider.
+        
+        Args:
+            texts: A single string or a list of strings to embed.
+        
+        Returns:
+            If input is a single string, returns a list of floats (embedding).
+            If input is a list of strings, returns a list of list of floats (embeddings).
         """
         if self.prompt_framework == PromptFramework.ELL:
             return self.framework_module.embed(
+                model_name=self.model.model_name,
+                input=texts
+            )
+        elif self.prompt_framework == PromptFramework.OAI_API:
+            return self.framework_module.embed(
                 model=self.model.model_name,
-                text=text
+                input=texts
             )
         else:
             raise NotImplementedError(f"Framework {self.prompt_framework} not implemented yet")
+
 
     @staticmethod
     def get_available_models(provider: str) -> list[Model]:

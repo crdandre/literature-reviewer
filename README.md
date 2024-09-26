@@ -24,6 +24,11 @@ Inspired by the agentic process utilized by [AI-Scientist] I thought it'd be a m
 
 Generally, it'd be nice to make this prompt framework agnostic, i.e. LangChain, ell, or anything else. So these, can be relegated to specific components for prompt types. Same goes for any type of framework involved - model type, pdf parsing framework, etc.
 
+## Chat Completions Approach
+- Trying to make it modular and easy to work with with the tools you know
+- OAI API package, ell, langchain all supported
+- OAI API chats use OpenRouter only for now, specify provider as the company that offers it. I.e. gpt-4o-mini through OpenRouter is still Model("gpt-4o-mini","OpenAI") because the model name within OpenRouter is still "openai/gpt-4o-mini". The API call is just made to OpenRouter's endpoint instead.
+
 The steps followed in AI-Scientist are:
 Similarly, the steps that would make sense in this case are:
 
@@ -75,3 +80,6 @@ Similarly, the steps that would make sense in this case are:
 - [sentient](https://github.com/sentient-engineering/sentient)
 - watch [this comparison](https://www.youtube.com/watch?v=6eDh7scJgdw) between CrewAI, AutoGen, LangGraph, and Agent Zero
 - [show-me](https://github.com/marlaman/show-me.git)
+
+### Other Tasks
+- Embeddings functionality for ell
