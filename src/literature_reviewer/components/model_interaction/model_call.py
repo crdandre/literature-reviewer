@@ -3,9 +3,6 @@ Handles prompting LLMs. Modular design should make using different
 frameworks and providers somewhat doable as long as more don't keep
 popping up quicker than I can keep track of
 """
-from dotenv import load_dotenv
-load_dotenv()
-
 from importlib import import_module
 from literature_reviewer.components.model_interaction.frameworks_and_models import ( #noqa
     PromptFramework, Model
@@ -33,7 +30,8 @@ class ModelInterface:
     def entry_chat_call(
         self,
         system_prompt,
-        task_prompt
+        user_prompt,
+        response_format
     ) -> str:
         """
         Calls an LLM API using the specified prompt framework and provider.
@@ -48,13 +46,15 @@ class ModelInterface:
             return self.framework_module.entry_chat_call(
                 model=self.model.model_name,
                 system=system_prompt,
-                task=task_prompt
+                user=user_prompt,
+                response_format=response_format
             )
         if self.prompt_framework == PromptFramework.OAI_API:
             return self.framework_module.entry_chat_call(
                 model_choice=self.model,
                 system=system_prompt,
-                task=task_prompt
+                user=user_prompt,
+                response_format=response_format
             ) 
         else:
             raise NotImplementedError(f"Framework {self.prompt_framework} not implemented yet")

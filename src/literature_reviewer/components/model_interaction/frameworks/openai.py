@@ -1,11 +1,8 @@
 import os
 from openai import OpenAI
-# from literature_reviewer.model_interaction.frameworks_and_models import 
-# from dotenv import load_dotenv
-# load_dotenv()
 
 
-def entry_chat_call(model_choice, system, task):
+def entry_chat_call(model_choice, system, user, response_format):
     client = OpenAI(
         base_url=os.getenv("OPENROUTER_BASE_URL"),
         api_key=os.getenv("OPENROUTER_API_KEY"),
@@ -13,11 +10,19 @@ def entry_chat_call(model_choice, system, task):
     model_name = f"{model_choice.provider.lower()}/{model_choice.model_name}"
     messages = [
         {"role": "system", "content": system},
-        {"role": "user", "content": task}
+        {"role": "user", "content": user}
     ]
-    completion = client.chat.completions.create(
-        model=model_name, messages=messages
-    )
+    if response_format:
+        completion = client.beta.chat.completions.parse(
+            model=model_name,
+            messages=messages,
+            response_format=response_format
+        )      
+    else: 
+        completion = client.chat.completions.create(
+            model=model_name,
+            messages=messages
+        )
     return completion.choices[0].message.content    
 
 

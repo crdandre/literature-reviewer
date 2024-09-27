@@ -22,7 +22,7 @@ python askdjhalksdjhalksjd.py --topic "why sky blue? you tell Joe."
 
 Inspired by the agentic process utilized by [AI-Scientist] I thought it'd be a more broadly applicable first step for more fields to create an agent which searched for literature related to a topic or local corpus of papers, and review the field, noticing the main themes, effots, gaps, unanswered questions, etc., and created a publishable literature review, or at least an internally useful one, in a short time for a small cost.
 
-Generally, it'd be nice to make this prompt framework agnostic, i.e. LangChain, ell, or anything else. So these, can be relegated to specific components for prompt types. Same goes for any type of framework involved - model type, pdf parsing framework, etc.
+Generally, it'd be nice to make this prompt framework agnostic, i.e. LangChain, ell, or anything else. So these, can be relegated to specific components for prompt types. Same goes for any type of framework involved - model type, pdf parsing framework, etc. This modularity does add some complexity and separates functionality into different files more than one might have otherwise done, but the idea is to make this extensible to do anything and event meta-agent rewrite itself at some point. This way I can make the framework more like lego blocks the model can play with (hopefully, not there yet).
 
 Temporarily, I'm using langchain/chroma db because YT shows this repeatedly and I can more easily get a feel for the data path this way. Eventually, I'd like to containerize a custom DB for this, so that the agent container can run free and the DB can be hosted in another container
 
