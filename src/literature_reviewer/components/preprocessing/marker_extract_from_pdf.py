@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO,
                     datefmt='%Y-%m-%d %H:%M:%S')
 
 
-class LocalPDFTextExtractor:
+class MarkerPDFTextExtractor:
     def __init__(
         self,
         pdf_inputs_folder: str,

@@ -24,9 +24,11 @@ Inspired by the agentic process utilized by [AI-Scientist] I thought it'd be a m
 
 Generally, it'd be nice to make this prompt framework agnostic, i.e. LangChain, ell, or anything else. So these, can be relegated to specific components for prompt types. Same goes for any type of framework involved - model type, pdf parsing framework, etc.
 
+Temporarily, I'm using langchain/chroma db because YT shows this repeatedly and I can more easily get a feel for the data path this way. Eventually, I'd like to containerize a custom DB for this, so that the agent container can run free and the DB can be hosted in another container
+
 ## Chat Completions Approach
 - Trying to make it modular and easy to work with with the tools you know
-- OAI API package, ell, langchain all supported
+- OAI API package, ell, langchain to be supported
 - OAI API chats use OpenRouter only for now, specify provider as the company that offers it. I.e. gpt-4o-mini through OpenRouter is still Model("gpt-4o-mini","OpenAI") because the model name within OpenRouter is still "openai/gpt-4o-mini". The API call is just made to OpenRouter's endpoint instead.
 
 The steps followed in AI-Scientist are:
@@ -49,6 +51,7 @@ Similarly, the steps that would make sense in this case are:
 
 ## Adjacent Reference Material
 [Texas A&M LibGuide on AI-Based Literature Reviews](https://tamu.libguides.com/c.php?g=1289555)
+[RAG/Agents, Good Article](https://lilianweng.github.io/posts/2023-06-23-agent/)
 
 ## Things to look into
 ### PDF Parsing Framework, which is best? Ideal: Proficient and able to run locally.

@@ -27,3 +27,6 @@
 # ell logdir
 logdir/
 temp.txt
+
+# Chroma DB
+chroma_db/

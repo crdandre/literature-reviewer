@@ -3,9 +3,12 @@ Handles prompting LLMs. Modular design should make using different
 frameworks and providers somewhat doable as long as more don't keep
 popping up quicker than I can keep track of
 """
+from dotenv import load_dotenv
+load_dotenv()
+
 from importlib import import_module
 from literature_reviewer.components.model_interaction.frameworks_and_models import ( #noqa
-    PromptFramework, Model, get_models_for_provider
+    PromptFramework, Model
 )
 from typing import Union, List
 
@@ -22,7 +25,9 @@ class ModelInterface:
     
     def _import_framework_module(self):
         module_name = self.prompt_framework.value.lower()
-        return import_module(f"literature_reviewer.components.model_interaction.{module_name}")
+        return import_module(
+            f"literature_reviewer.components.model_interaction.frameworks.{module_name}"
+        )
     
     
     def entry_chat_call(
@@ -66,24 +71,10 @@ class ModelInterface:
             If input is a single string, returns a list of floats (embedding).
             If input is a list of strings, returns a list of list of floats (embeddings).
         """
-        if self.prompt_framework == PromptFramework.ELL:
-            return self.framework_module.embed(
-                model_name=self.model.model_name,
-                input=texts
-            )
-        elif self.prompt_framework == PromptFramework.OAI_API:
+        if self.prompt_framework == PromptFramework.OAI_API:
             return self.framework_module.embed(
                 model=self.model.model_name,
                 input=texts
             )
         else:
             raise NotImplementedError(f"Framework {self.prompt_framework} not implemented yet")
-
-
-    @staticmethod
-    def get_available_models(provider: str) -> list[Model]:
-        """
-        Returns a list of available models for the given provider.
-        """
-        return get_models_for_provider(provider)
-
