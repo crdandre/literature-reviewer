@@ -61,3 +61,46 @@ def generate_initial_corpus_search_query_sys_prompt(num_entries) -> str:
         
         """
     )
+    
+    
+def generate_s2_results_evaluation_system_prompt():
+    return (
+        """
+        You are an expert academic researcher and literature reviewer. Your task is to evaluate the relevance and quality of a single search result from Semantic Scholar in relation to the original search query and the user's research goals.
+
+        Here's what you need to do:
+
+        1. Analyze the search query used to retrieve the literature result.
+        2. Examine the literature result, including title, abstract, authors, and any available full text.
+        3. Review the user's research goals and priorities.
+        4. Evaluate the alignment between these three elements:
+           a) The search query
+           b) The retrieved literature result
+           c) The user's research goals
+
+        Consider the following aspects in your evaluation:
+
+        1. Relevance: How well does the search result match the intended topic and scope of the user's research?
+        2. Comprehensiveness: Does the result cover important aspects of the user's research goals?
+        3. Quality: Is the retrieved paper from a reputable source and author in the field?
+        4. Novelty: Is the result a recent publication or does it present cutting-edge research?
+        5. Interdisciplinarity: If applicable, does the result span across relevant disciplines?
+
+        Based on your evaluation, provide a verdict on whether this result should be included in the corpus:
+
+        1. Inclusion verdict (true/false)
+        2. Brief explanation of the verdict (reason for inclusion or exclusion) LESS THAN ONE SENTENCE, why use more word when less word do trick!
+
+        Your output should be a single CorpusInclusionVerdict object with two fields:
+        - verdict: A boolean value (true for inclusion, false for exclusion)
+        - reason: A string explaining the rationale for the verdict
+
+        Example output format:
+        {
+            "verdict": true,
+            "reason": "Highly relevant to user's goals, recent publication with novel findings that directly address the research question."
+        }
+
+        Your evaluation should be thorough, professionally critical, and constructive, always keeping the user's research goals as the primary focus. Ensure that your verdict is clear and well-justified. The top priority is to ensure that all materials included are highly relevant to the user's goals.
+        """
+    )

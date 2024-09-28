@@ -31,21 +31,6 @@ Temporarily, I'm using langchain/chroma db because YT shows this repeatedly and 
 - OAI API package, ell, langchain to be supported
 - OAI API chats use OpenRouter only for now, specify provider as the company that offers it. I.e. gpt-4o-mini through OpenRouter is still Model("gpt-4o-mini","OpenAI") because the model name within OpenRouter is still "openai/gpt-4o-mini". The API call is just made to OpenRouter's endpoint instead.
 
-The steps followed in AI-Scientist are:
-Similarly, the steps that would make sense in this case are:
-
-## Some possible steps. Formalize the task list soon.
-
-- [ ] Extract PDF text with RAG and Semantic Scholar search in mind
-- [ ] Set-up databases for text embeddings and chat history
-- [ ] Embed topic info/known corpus in vector DB
----
-- [ ] Search for similar papers using Semantic Scholar
-- [ ] Extract salient themes, gaps, unanswered questions, proposed useful future directions, etc.
-- [ ] Analyze the output of the above step to review and sort the found themes by novelty and feasibility
----
-- [ ] Rate Limit Handling
-
 ## Issues
 - Dependency conflict with ell-ai, langchain, and numpy - the first two have no overlapping versions of the 3rd. Starting with langchain for now...
 
@@ -85,4 +70,9 @@ Similarly, the steps that would make sense in this case are:
 - [show-me](https://github.com/marlaman/show-me.git)
 
 ### Other Tasks
-- Embeddings functionality for ell
+- Embeddings functionality for ell - work on a PR for that
+- Modularize database and embedding functionality to be untethered to langchain as it currently is
+- Formalize the scheme by which the user_goals are connected to the vec db queries, connected to the s2 queries, connected to the s2 results, connected to the evaluations. Continuity of context!
+- Move pdf extraction cleaning into its own module or find another module online to do this - either from marker or langchain, there are stray unicode chars, newlines, etc.
+- Consider how the user_goals and other prompt are just added together in the user prompt. maybe there is a better way here.
+- Local and remote chunks (i.e. abstract only from s2 vs locally read pdf) chunk ids work differently, not sure if this is a problem, but just noting it.

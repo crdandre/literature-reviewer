@@ -45,53 +45,54 @@ class SemanticScholarInterface:
     @backoff.on_exception(
         backoff.expo, requests.exceptions.HTTPError, on_backoff=_on_backoff
     )
-    def search_papers_via_query(self, title: str, authors: str, year: str) -> Optional[Dict]:
+    def search_papers_via_queries(self, queries: List[str]) -> List[Optional[Dict]]:
         """
-        Searches for a paper using the Semantic Scholar API.
-
-        :param title: The title of the paper.
-        :param authors: The authors of the paper.
-        :param year: The publication year of the paper.
-        :return: A dictionary containing paper details or None if not found.
+        Searches for papers using the Semantic Scholar API for a list of queries.
         """
-        if not title:
-            logger.warning("Empty title provided.")
-            return None
-
+        results = []
         headers = {"X-API-KEY": self.api_key}
-        query = f"{title} {authors} {year}"
-        params = {
-            "query": query,
-            "limit": self.query_result_length,
-            "fields": self.fields,
-        }
+        
+        for query in queries:
+            params = {
+                "query": query,
+                "limit": self.query_result_length,
+                "fields": self.fields,
+            }
 
-        request_url = f"{self.base_url}/paper/search"
-        response = requests.get(request_url, headers=headers, params=params)
-        logger.info(f"Searching for: {query} | Status Code: {response.status_code}")
-        response.raise_for_status()
+            request_url = f"{self.base_url}/paper/search"
+            response = requests.get(request_url, headers=headers, params=params)
+            logger.info(f"Searching for: {query} | Status Code: {response.status_code}")
+            response.raise_for_status()
 
-        data = response.json()
-        if data.get("total", 0) == 0:
-            logger.info(f"No results found for query: {query}")
-            return None
+            data = response.json()
+            if data.get("total", 0) == 0:
+                logger.info(f"No results found for query: {query}")
+                results.append(None)
+            else:
+                results.extend(data.get("data", []))
 
-        return data.get("data", [])[0] if data.get("data") else None
+            time.sleep(self.rate_limit)
 
+        return results
     
 
-
-# Example Usage
 if __name__ == "__main__":
-    # Set up logging configuration
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-    # Initialize the searcher
-    searcher = SemanticScholarSearcher(api_key=os.getenv("S2_API_KEY"))
-
-    # Define input and output paths
-    reference_file = "path/to/your/reference_list.txt"
-    output_file = "search_results.json"
-
-    # Run the search
-    searcher.run(reference_file, output_file)
+    from dotenv import load_dotenv
+    import json
+    from pprint import pprint
+    
+    load_dotenv()
+    
+    s2_interface = SemanticScholarInterface(query_result_length=5)
+    query = "Patient-specific finite element modeling of scoliotic curve progression"
+    results = s2_interface.search_papers_via_queries([query])
+    
+    print("Search Results:")
+    for result in results:
+        if result:
+            pprint(result, indent=2, width=120)
+        else:
+            print("No results found for this query.")
+        print("\n" + "-"*80 + "\n")
+    
+    

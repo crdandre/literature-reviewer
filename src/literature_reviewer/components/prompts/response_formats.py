@@ -4,6 +4,7 @@ from typing import List
 class SeedDataQueryList(BaseModel):
     vec_db_queries: List[str]
 
+
 class S2Query(BaseModel):
     query: str
     initial_relevance_to_user_goal: int
@@ -14,5 +15,23 @@ class S2Query(BaseModel):
     expanded_relevance_to_corpus: int
     connected_user_goal: str
 
+
 class S2QueryList(BaseModel):
     s2_queries: List[S2Query]
+
+
+class S2Response(BaseModel):
+    title: str
+    author: str
+    year: int
+    abstract: str
+    keywords: List[str]
+
+
+class S2ResponseList(BaseModel):
+    s2_responses: List[S2Response]
+    
+
+class CorpusInclusionVerdict(BaseModel):
+    verdict: bool
+    reason: str

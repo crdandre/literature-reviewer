@@ -20,6 +20,7 @@
 
 # Local PDF files
 **/input_pdfs/
+**/downloaded_pdfs/
 
 # Reference files
 **/sample_outputs/

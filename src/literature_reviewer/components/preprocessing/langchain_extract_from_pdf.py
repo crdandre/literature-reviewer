@@ -11,13 +11,15 @@ from langchain.schema.document import Document
 class LangchainPDFTextExtractor:
     def __init__(
         self,
-        input_folder,
+        input_folder=None,
         chunk_size=800,
-        chunk_overlap=80
+        chunk_overlap=80,
+        extract_images=False
     ):
         self.input_folder = input_folder
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
+        self.extract_images = extract_images
 
 
     def pdf_directory_to_chunks_with_ids(self):

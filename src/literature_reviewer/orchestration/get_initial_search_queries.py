@@ -7,25 +7,37 @@ Then, embed that. At this point the database is ready for searching.
 """
 import json
 from literature_reviewer.components.preprocessing.langchain_extract_from_pdf import LangchainPDFTextExtractor
-from literature_reviewer.components.database_operations.chroma_operations import add_to_chromadb, query_chromadb
+from literature_reviewer.components.database_operations.chroma_operations import (
+    add_to_chromadb,
+    query_chromadb,
+)
 from literature_reviewer.components.model_interaction.model_call import ModelInterface
-from literature_reviewer.components.model_interaction.frameworks_and_models import PromptFramework, Model
-from literature_reviewer.components.prompts.literature_search_query import generate_literature_search_query_sys_prompt, generate_initial_corpus_search_query_sys_prompt
-from literature_reviewer.components.prompts.response_formats import SeedDataQueryList, S2QueryList
+from literature_reviewer.components.model_interaction.frameworks_and_models import (
+    PromptFramework,
+    Model,
+)
+from literature_reviewer.components.prompts.literature_search_query import (
+    generate_literature_search_query_sys_prompt,
+    generate_initial_corpus_search_query_sys_prompt,
+)
+from literature_reviewer.components.prompts.response_formats import (
+    SeedDataQueryList,
+    S2QueryList,
+)
 
 
 class UserMaterialsInput:
     def __init__(
         self,
-        user_goals_txt,
+        user_goals_text,
         user_supplied_pdfs_directory,
-        num_vec_db_queries=2,
+        num_vec_db_queries=1,
         vec_db_query_num_results=1,
-        num_s2_queries = 10,
+        num_s2_queries = 1,
         model_name="gpt-4o-mini",
         model_provider = "OpenAI",
     ):
-        self.user_goals_txt = user_goals_txt
+        self.user_goals_text = user_goals_text
         self.user_supplied_pdfs_directory = user_supplied_pdfs_directory
         self.num_vec_db_queries = num_vec_db_queries
         self.vec_db_query_num_results = vec_db_query_num_results
@@ -45,7 +57,7 @@ class UserMaterialsInput:
         chat_interface = ModelInterface(prompt_framework, chat_model)
         vec_db_queries_raw = chat_interface.entry_chat_call(
             system_prompt=generate_initial_corpus_search_query_sys_prompt(self.num_vec_db_queries),
-            user_prompt=self.user_goals_txt,
+            user_prompt=self.user_goals_text,
             response_format=SeedDataQueryList
         )
         vec_db_queries = json.loads(vec_db_queries_raw)["vec_db_queries"]        
@@ -58,7 +70,7 @@ class UserMaterialsInput:
         joined_context = "\n".join(contexts)
         semantic_scholar_queries = chat_interface.entry_chat_call(
             system_prompt=generate_literature_search_query_sys_prompt(self.num_s2_queries),
-            user_prompt=joined_context + self.user_goals_txt,
+            user_prompt=joined_context + self.user_goals_text,
             response_format=S2QueryList
         )
 
@@ -68,7 +80,8 @@ class UserMaterialsInput:
         print(json.dumps(json.loads(semantic_scholar_queries), indent=4))
 
 if __name__ == "__main__":
-    user_goals_txt = "/home/christian/literature-reviewer/user_inputs/goal_prompt.txt"
+    with open("/home/christian/literature-reviewer/user_inputs/goal_prompt.txt", "r") as file:
+        user_goals_text = file.read()
     user_supplied_pdfs_directory = "/home/christian/literature-reviewer/input_pdfs"
     num_vec_db_queries = 3
     vec_db_query_num_results = 2
@@ -77,7 +90,7 @@ if __name__ == "__main__":
     model_provider = "OpenAI"
 
     user_materials_input = UserMaterialsInput(
-        user_goals_txt=user_goals_txt,
+        user_goals_text=user_goals_text,
         user_supplied_pdfs_directory=user_supplied_pdfs_directory,
         num_vec_db_queries=num_vec_db_queries,
         vec_db_query_num_results=vec_db_query_num_results,
