@@ -75,9 +75,11 @@ class UserMaterialsInput:
         )
 
         
-        # Pretty print the semantic_scholar_queries in JSON format
-        print("SEMANTIC SCHOLAR QUERY LIST (Pretty JSON):")
-        print(json.dumps(json.loads(semantic_scholar_queries), indent=4))
+        # # Pretty print the semantic_scholar_queries in JSON format
+        # print("SEMANTIC SCHOLAR QUERY LIST (Pretty JSON):")
+        # print(json.dumps(json.loads(semantic_scholar_queries), indent=4))
+        print("S2 Query Objects Generated")
+        return semantic_scholar_queries
 
 if __name__ == "__main__":
     with open("/home/christian/literature-reviewer/user_inputs/goal_prompt.txt", "r") as file:
@@ -101,3 +103,4 @@ if __name__ == "__main__":
 
     user_materials_input.embed_user_supplied_pdfs()
     user_materials_input.search_initial_corpus_for_queries_based_on_goals()
+    

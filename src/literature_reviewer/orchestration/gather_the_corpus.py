@@ -32,6 +32,7 @@ from literature_reviewer.components.prompts.response_formats import (
     CorpusInclusionVerdict
 )
 from langchain.schema import Document
+import logging
 
 class CorpusGatherer:
     def __init__(
@@ -53,7 +54,8 @@ class CorpusGatherer:
         self.model_name = model_name or os.getenv("DEFAULT_MODEL_NAME")
         self.model_provider = model_provider or os.getenv("DEFAULT_MODEL_PROVIDER")
         self.vector_db_path = vector_db_path or os.getenv("CHROMA_DB_PATH")
-        
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
     def search_s2_for_queries(self):
         return self.s2_interface.search_papers_via_queries(self.search_queries)
         
@@ -64,47 +66,58 @@ class CorpusGatherer:
         can be re-written to a more flexible "text" field containing
         chunks
         """
+        logging.info(f"Processing {len(search_results)} search results")
         processed_results = []
-        for result in search_results:
-            paper_id = ""
-            processed_result = {
-                key: value for key, value in result.items() 
-                if key not in ['openAccessPdf', 'abstract']
-            }
-            processed_result['text'] = {
-                'abstract': [],
-                'pdf_extraction': []
-            }
+        for index, result in enumerate(search_results):
+            if result is None:
+                logging.warning(f"Skipping None result at index {index}")
+                continue
             
-            if result.get('abstract'):
+            try:
                 paper_id = result.get('paperId', 'unknown')
-                processed_result['text']['abstract'] = [(paper_id, result['abstract'])]
-            
-            if (
-                result.get('isOpenAccess') and result.get('openAccessPdf') and result['openAccessPdf'].get('url') and
-                f"{result.get('paperId', 'unknown')}.pdf" not in os.listdir(self.pdf_download_path)
-            ):
-                pdf_url = result['openAccessPdf']['url']
-                pdf_filename = f"{result.get('paperId', 'unknown')}.pdf"
-                pdf_path = os.path.join(self.pdf_download_path, pdf_filename)
+                processed_result = {
+                    key: value for key, value in result.items() 
+                    if key not in ['openAccessPdf', 'abstract']
+                }
+                processed_result['text'] = {
+                    'abstract': [],
+                    'pdf_extraction': []
+                }
                 
-                try:
-                    response = requests.get(pdf_url)
-                    response.raise_for_status()
-                    with open(pdf_path, 'wb') as pdf_file:
-                        pdf_file.write(response.content)
-                    print(f"Downloaded PDF: {pdf_filename}")
-                except Exception as e:
-                    print(f"Failed to download PDF: {pdf_url}. Error: {str(e)}")
-            else:
-                print(f"PDF for {paper_id} already downloaded...")
-            
-            processed_results.append(processed_result)
-            
+                if result.get('abstract'):
+                    processed_result['text']['abstract'] = [(paper_id, result['abstract'])]
+                
+                if (
+                    result.get('isOpenAccess') and result.get('openAccessPdf') and result['openAccessPdf'].get('url') and
+                    f"{result.get('paperId', 'unknown')}.pdf" not in os.listdir(self.pdf_download_path)
+                ):
+                    pdf_url = result['openAccessPdf']['url']
+                    pdf_filename = f"{result.get('paperId', 'unknown')}.pdf"
+                    pdf_path = os.path.join(self.pdf_download_path, pdf_filename)
+                    
+                    try:
+                        response = requests.get(pdf_url)
+                        response.raise_for_status()
+                        with open(pdf_path, 'wb') as pdf_file:
+                            pdf_file.write(response.content)
+                        logging.info(f"Downloaded PDF: {pdf_filename}")
+                    except Exception as e:
+                        logging.error(f"Failed to download PDF: {pdf_url}. Error: {str(e)}")
+                else:
+                    logging.info(f"PDF for {paper_id} already downloaded...")
+                
+                processed_results.append(processed_result)
+                
+            except Exception as e:
+                logging.error(f"Error processing result at index {index}: {str(e)}")
+                continue
+
+        logging.info(f"Processed {len(processed_results)} valid results")
+
         # Convert all PDFs to Documents using LangchainPDFTextExtractor
         extractor = LangchainPDFTextExtractor(input_folder=self.pdf_download_path)
         all_chunks_with_ids = extractor.pdf_directory_to_chunks_with_ids()
-        
+
         # Group chunks by their source (PDF file)
         chunks_by_source = {}
         for chunk in all_chunks_with_ids:
@@ -126,8 +139,7 @@ class CorpusGatherer:
                     for chunk in chunks
                 ]
             else:
-                print(f"PDF not found for paper ID: {paper_id}")
-
+                logging.warning(f"PDF not found for paper ID: {paper_id}")
 
         return processed_results, all_chunks_with_ids
     
@@ -180,7 +192,7 @@ class CorpusGatherer:
                 verdict_dict = json.loads(corpus_inclusion_verdict)
                 # Append the boolean verdict
                 this_paper_verdicts.append(verdict_dict['verdict'])
-                print(f"Batch {batch_index + 1} verdict for paper: {corpus_inclusion_verdict}")
+                logging.info(f"Batch {batch_index + 1} verdict for paper {result['paperId']}: {verdict_dict['verdict']}")
                 
             average_verdict = sum(this_paper_verdicts) / len(this_paper_verdicts) if this_paper_verdicts else 0
             paper_id = result.get('paperId', 'unknown')
@@ -193,8 +205,8 @@ class CorpusGatherer:
             if verdict >= inclusion_threshold
         ]
         
-        print(f"Number of papers approved: {len(approved_paper_ids)}")
-        print(f"Number of papers rejected: {len(paper_verdicts) - len(approved_paper_ids)}")
+        logging.info(f"Number of papers approved: {len(approved_paper_ids)}")
+        logging.info(f"Number of papers rejected: {len(paper_verdicts) - len(approved_paper_ids)}")
             
         return approved_paper_ids
 
@@ -219,7 +231,7 @@ class CorpusGatherer:
         if approved_chunks:
             add_to_chromadb(approved_chunks)
         
-        print(f"Added {len(approved_chunks)} chunks from {len(approved_paper_ids)} papers to the vector database.")
+        logging.info(f"Added {len(approved_chunks)} chunks from {len(approved_paper_ids)} papers to the vector database.")
 
 
 if __name__ == "__main__":
@@ -227,10 +239,10 @@ if __name__ == "__main__":
     from dotenv import load_dotenv
     load_dotenv()
     
-    print(f"PDF_DOWNLOAD_PATH: {os.getenv('PDF_DOWNLOAD_PATH')}")
-    print(f"DEFAULT_MODEL_NAME: {os.getenv('DEFAULT_MODEL_NAME')}")
-    print(f"DEFAULT_MODEL_PROVIDER: {os.getenv('DEFAULT_MODEL_PROVIDER')}")
-    print(f"CHROMA_DB_PATH: {os.getenv('CHROMA_DB_PATH')}")
+    logging.info(f"PDF_DOWNLOAD_PATH: {os.getenv('PDF_DOWNLOAD_PATH')}")
+    logging.info(f"DEFAULT_MODEL_NAME: {os.getenv('DEFAULT_MODEL_NAME')}")
+    logging.info(f"DEFAULT_MODEL_PROVIDER: {os.getenv('DEFAULT_MODEL_PROVIDER')}")
+    logging.info(f"CHROMA_DB_PATH: {os.getenv('CHROMA_DB_PATH')}")
     
     with open("/home/christian/literature-reviewer/user_inputs/goal_prompt.txt", "r") as file:
         user_goals_text = file.read()
