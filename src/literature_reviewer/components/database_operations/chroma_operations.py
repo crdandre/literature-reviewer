@@ -2,9 +2,12 @@
 Initial attempt at local vector store
 Thanks to https://github.com/pixegami/rag-tutorial-v2/blob/main/populate_database.py
 """
+import chromadb
 from langchain.schema.document import Document
 from langchain_chroma import Chroma
 from literature_reviewer.components.model_interaction.frameworks.langchain import get_embedding_function
+import numpy as np
+import pandas as pd
 
 def add_to_chromadb(chunks_with_ids: list[Document], chroma_path: str = "chroma_db", model: str = "text-embedding-3-small"):
     # Load the existing database.
@@ -41,3 +44,22 @@ def query_chromadb(
     db = Chroma(persist_directory=chroma_path, embedding_function=get_embedding_function(model))
     result_list = db.similarity_search_with_score(query_text, k=num_results)
     return "\n\n---\n\n".join([doc.page_content for doc, _score in result_list])
+
+
+def get_full_chromadb_collection(
+    chroma_path: str = "chroma_db",
+    collection_index: int = 0
+) -> tuple[np.ndarray, list]:
+    client = chromadb.PersistentClient(path=chroma_path)
+    collection = client.list_collections()[collection_index]
+    
+    results = collection.get(include=['embeddings'])
+    
+    results = collection.get(include=['embeddings', 'documents', 'metadatas'])
+    
+    return {
+        'ids': results['ids'],
+        'embeddings': np.array(results['embeddings']),
+        'documents': results['documents'],
+        'metadatas': results['metadatas']
+    }

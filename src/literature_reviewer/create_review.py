@@ -62,6 +62,38 @@ def create_literature_review():
     
     # Create prompts to write a literature review using the embedded database
     # RAG HERE
+    # maybe use the user_goals, along with any other interesting questions, to craft a list of the final review themes
+    # this might use intermediate materials, user_goals, and direct searches to the database
+    # can i reasonably ask this database "what are the main themes of the papers you have?"
+    # I think i'd need more targeted vectors than that but not sure.
+    
+    """
+    Claude and 
+    https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10541641/
+    https://ieeexplore.ieee.org/document/8851280
+    as inspiration so far
+    TF-IDF use somewhere?
+    1. Dimensionality Reduction (optional? if so, PaCMAP, UMAP, t-SNE, PCA, SVD, Autoencoder)
+    2. Clustering embeddings from (1) using techniques such as HDBSCAN
+        a. choose a clustering algorithm
+        b. determine optimal number of clusters if this helps
+        c. assigning to clusters based on membership value maybe?
+    3. Cluster analysis to identify themes (visualize clusters, i.e. t-SNE plots)
+        a. further reduced dimensionality
+    """
+    
+    
+    # Themes to outline
+    
+    # Outline to writeup
+    
+    # Writeup to reviewed writeup
+    
+    # Reviewed writeup to formatted pdf
+    
+    # Visualizations of the entire process, flow of information charts that are explorable.
+    
+    
 
 if __name__ == "__main__":
     create_literature_review()

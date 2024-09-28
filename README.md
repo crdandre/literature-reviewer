@@ -77,3 +77,6 @@ Temporarily, I'm using langchain/chroma db because YT shows this repeatedly and 
 - Consider how the user_goals and other prompt are just added together in the user prompt. maybe there is a better way here.
 - Local and remote chunks (i.e. abstract only from s2 vs locally read pdf) chunk ids work differently, not sure if this is a problem, but just noting it.
 - Parallelization of local tasks, downloads, requests that can be parallelized, etc. Multi-GPU support for local llama
+- Style rewriting given samples of the user's writing
+- Remote/containerized chromadb
+- Remote/containerized agent itself!
