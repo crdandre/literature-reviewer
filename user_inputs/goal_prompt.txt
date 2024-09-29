@@ -18,9 +18,9 @@ Again, your job is to have exceptional attention to detail and accuracy when par
 [END LLM CONTEXT]
 -----------------------------------------------------------------------------------------------------------------------------------------
 [USER INPUT]
-1<I'm fairly sure scoliosis braces can improve patient outcomes>
-2<What drives spine growth?>
-5<Read on the Hueter-Volkmann Law, and it's role in scoliosis>
+1<Adolescence is the key time for AIS progression and treatment, before the growth plates close. There are many types of treatment, but spinal fusion is particularly brutal. Some growth-modulating treatments may be better, but are harder to predict and less studied. There are gaps in our understanding of the growth plates and how they can be mechanically and pharmacologically modulated. There are also gaps in the ability to computationally predict the success of treatment for a given approach, whether it be bracing or surgical, such as anterior vertebral body tethering.>
+2<What are the most effective growth-modulating treatments? How do they compare to spinal fusion? What is the mechanism of action of the growth-modulating treatments? How does the growth plate mechanobiology change under stress? I.e., what changes across the structure of the growth plate, cell composition, gene expression, collagen secretion, etc.>
+5<Read on the Hueter-Volkmann Law, and it's role in scoliosis, growth plate mechanobiology, and how it may be applicable to AIS, and how the growth plate may be understood in the context of growth modulation.>
 10<2,5,1>
 [END USER INPUT]
 

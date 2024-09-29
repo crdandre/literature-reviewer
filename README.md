@@ -83,3 +83,6 @@ Temporarily, I'm using langchain/chroma db because YT shows this repeatedly and 
 - Optional human feedback at certain steps - email notifs depending on time required to generate review
 - How to characterize performance as a function of which model is used for each step, chunk size, input tokens per prompt, number of layers of paper search (i.e. finding N related papers, then M related papers for each of the N first papers), number of reflection steps for each relevant process, type of embedding/embedding model, type of dimensionality reduction for embeddings, reduced dimensionality number, clustering method,...add all
 - Saving model run data at intermediate points to loop based on a prior state / loop portions of the whole flow, to not over-use API calls. Possibly by writing detailed logs all in one file each run or saving certain details to a database.
+- [x] timestamped runs to not overwrite anything
+- [ ] ability to restart or build on an existing run
+- make consistent the way the user goals are used in the system prompt like the later examples

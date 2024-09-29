@@ -51,9 +51,13 @@ class MultiClusterSummary(BaseModel):
     unanswered_questions: List[str]
     future_directions: List[str]
     
+class CitationObject(BaseModel):
+    id: int
+    citation: str
+    
 class SectionWriteup(BaseModel):
     content: str
-    references: List[str]
+    references: List[CitationObject]
     
 # This is a placeholder/basic review outline model
 # There could be a way to expand on this to have a model per review type

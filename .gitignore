@@ -34,3 +34,10 @@ chroma_db/
 
 # Private notes
 **/private_notes.md
+
+# Framework inputs/outputs
+**/framework_outputs/
+**/user_inputs/user_supplied_pdfs/*
+!**/user_inputs/user_supplied_pdfs/.gitkeep
+
+old_pre_run_folders/

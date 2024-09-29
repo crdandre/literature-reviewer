@@ -34,27 +34,30 @@ class UserMaterialsInput:
         num_vec_db_queries=1,
         vec_db_query_num_results=1,
         num_s2_queries = 1,
+        prompt_framework=None,
         model_name="gpt-4o-mini",
         model_provider = "OpenAI",
+        chromadb_path = None,
     ):
         self.user_goals_text = user_goals_text
         self.user_supplied_pdfs_directory = user_supplied_pdfs_directory
         self.num_vec_db_queries = num_vec_db_queries
         self.vec_db_query_num_results = vec_db_query_num_results
         self.num_s2_queries = num_s2_queries
+        self.prompt_framework = prompt_framework
         self.model_name = model_name
         self.model_provider = model_provider
+        self.chromadb_path = chromadb_path
         
     def embed_user_supplied_pdfs(self):
         chunks_with_ids = LangchainPDFTextExtractor(
             self.user_supplied_pdfs_directory
         ).pdf_directory_to_chunks_with_ids()
-        add_to_chromadb(chunks_with_ids)
+        add_to_chromadb(chunks_with_ids, chroma_path=self.chromadb_path)
         
     def search_initial_corpus_for_queries_based_on_goals(self):
-        prompt_framework = PromptFramework.OAI_API
         chat_model = Model(self.model_name, self.model_provider)
-        chat_interface = ModelInterface(prompt_framework, chat_model)
+        chat_interface = ModelInterface(self.prompt_framework, chat_model)
         vec_db_queries_raw = chat_interface.entry_chat_call(
             system_prompt=generate_initial_corpus_search_query_sys_prompt(self.num_vec_db_queries),
             user_prompt=self.user_goals_text,
@@ -64,7 +67,8 @@ class UserMaterialsInput:
         contexts = [
             query_chromadb(
                 query_text=query,
-                num_results=self.vec_db_query_num_results
+                num_results=self.vec_db_query_num_results,
+                chroma_path=self.chromadb_path,
             ) for query in vec_db_queries
         ]
         joined_context = "\n".join(contexts)

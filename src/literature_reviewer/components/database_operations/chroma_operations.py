@@ -9,7 +9,7 @@ from literature_reviewer.components.model_interaction.frameworks.langchain impor
 import numpy as np
 import pandas as pd
 
-def add_to_chromadb(chunks_with_ids: list[Document], chroma_path: str = "chroma_db", model: str = "text-embedding-3-small"):
+def add_to_chromadb(chunks_with_ids: list[Document], chroma_path: str, model: str = "text-embedding-3-small"):
     # Load the existing database.
     db = Chroma(
         persist_directory=chroma_path, embedding_function=get_embedding_function(model)
@@ -47,8 +47,8 @@ def query_chromadb(
 
 
 def get_full_chromadb_collection(
-    chroma_path: str = "chroma_db",
-    collection_index: int = 0
+    chroma_path: str,
+    collection_index: int = 0,
 ) -> tuple[np.ndarray, list]:
     client = chromadb.PersistentClient(path=chroma_path)
     collection = client.list_collections()[collection_index]

@@ -1,3 +1,5 @@
+#OUTDATED class defs
+
 import logging
 from literature_reviewer.components.model_interaction.model_call import ModelInterface
 from literature_reviewer.components.model_interaction.frameworks_and_models import PromptFramework, Model

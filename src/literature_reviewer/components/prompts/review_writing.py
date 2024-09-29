@@ -40,14 +40,25 @@ def generate_section_writing_sys_prompt(section_name):
 
     Please write the section content following these guidelines:
     1. Maintain an academic and scholarly tone throughout the section.
-    2. Incorporate relevant citations and quotations from the provided research.
+    2. Incorporate relevant citations using in-text references in the format [n], where n is a number corresponding to the reference list.
     3. Ensure logical flow and coherence within the section and consider its place in the overall review structure.
     4. Address the main points outlined in the section content provided.
     5. Use the relevant research to support, contrast, or expand upon the main points.
 
     Your response should be in a format that can be parsed into the SectionWriteup model, which includes the following fields:
-    1. content: str - The main body of the section, including all the written content.
-    2. references: List[str] - A list of references cited in the content, formatted according to a standard academic citation style.
+    1. content: str - The main body of the section, including all the written content with in-text citations as [n].
+    2. references: List[CitationObject] - A list of CitationObject instances, each containing:
+       - id: int - The numeric identifier used in the in-text citation
+       - citation: str - The full citation string formatted according to a standard academic citation style
 
-    Ensure that your response can be easily parsed into these fields. The content should be comprehensive and well-structured, while the references should accurately reflect all sources cited in the content.
+    Ensure that your response can be easily parsed into these fields. The content should be comprehensive and well-structured, with in-text citations as [n]. The references should be a list of CitationObject instances that accurately reflects all sources cited in the content. Also ensure that markdown heading formatting is used to signify sections consistently.
+
+    Example of in-text citation and reference list format:
+    Content: "Recent studies have shown a significant increase in remote work adoption [1], which has led to new challenges in team communication [2]."
+
+    References:
+    [
+        {{"id": 1, "citation": "Smith, J. (2021). The rise of remote work in the digital age. Journal of Workplace Studies, 15(2), 45-62."}},
+        {{"id": 2, "citation": "Johnson, A., & Lee, M. (2022). Communication challenges in distributed teams. International Journal of Organizational Behavior, 8(3), 112-128."}}
+    ]
     """

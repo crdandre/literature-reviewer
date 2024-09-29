@@ -14,25 +14,17 @@ back to the user goals directly in the output list.
 batches of chunks per evaluation for filtering the search results
 depends on chunk size, set elsewhere
 """
-import json, os, requests
+import json, logging, os, requests
+from langchain.schema import Document
+
 from literature_reviewer.components.data_ingestion.semantic_scholar import SemanticScholarInterface
 from literature_reviewer.components.preprocessing.langchain_extract_from_pdf import LangchainPDFTextExtractor
-from literature_reviewer.components.database_operations.chroma_operations import (
-    add_to_chromadb,
-)
+from literature_reviewer.components.database_operations.chroma_operations import add_to_chromadb
 from literature_reviewer.components.model_interaction.model_call import ModelInterface
-from literature_reviewer.components.model_interaction.frameworks_and_models import (
-    PromptFramework,
-    Model,
-)
-from literature_reviewer.components.prompts.literature_search_query import (
-    generate_s2_results_evaluation_system_prompt,
-)
-from literature_reviewer.components.prompts.response_formats import (
-    CorpusInclusionVerdict
-)
-from langchain.schema import Document
-import logging
+from literature_reviewer.components.model_interaction.frameworks_and_models import Model
+from literature_reviewer.components.prompts.literature_search_query import generate_s2_results_evaluation_system_prompt
+from literature_reviewer.components.prompts.response_formats import CorpusInclusionVerdict
+
 
 class CorpusGatherer:
     def __init__(
@@ -42,22 +34,24 @@ class CorpusGatherer:
         s2_interface=SemanticScholarInterface(),
         s2_results_num_eval_loops=1,
         pdf_download_path=None,
+        prompt_framework=None,
         model_name=None,
         model_provider=None,
-        vector_db_path=None,
         batch_size=12,
-        inclusion_threshold=0.85
+        inclusion_threshold=0.85,
+        chromadb_path=None,
     ):
         self.search_queries = search_queries
         self.user_goals_text = user_goals_text
         self.s2_interface = s2_interface
         self.s2_results_num_eval_loops = s2_results_num_eval_loops
         self.pdf_download_path = pdf_download_path
+        self.prompt_framework = prompt_framework
         self.model_name = model_name
         self.model_provider = model_provider
-        self.vector_db_path = vector_db_path
         self.batch_size = batch_size
         self.inclusion_threshold = inclusion_threshold
+        self.chromadb_path = chromadb_path
 
     def search_s2_for_queries(self):
         return self.s2_interface.search_papers_via_queries(self.search_queries)
@@ -118,8 +112,15 @@ class CorpusGatherer:
         logging.info(f"Processed {len(processed_results)} valid results")
 
         # Convert all PDFs to Documents using LangchainPDFTextExtractor
+        print(f"PDF DOWNLOAD PATH: {self.pdf_download_path}")
+        
         extractor = LangchainPDFTextExtractor(input_folder=self.pdf_download_path)
-        all_chunks_with_ids = extractor.pdf_directory_to_chunks_with_ids()
+        try:
+            all_chunks_with_ids = extractor.pdf_directory_to_chunks_with_ids()
+        except TypeError as e:
+            logging.error(f"Error processing PDFs: {str(e)}")
+            logging.warning("Skipping PDF extraction due to error")
+            all_chunks_with_ids = []
 
         # Group chunks by their source (PDF file)
         chunks_by_source = {}
@@ -171,9 +172,8 @@ class CorpusGatherer:
         whether it should be added to the corpus
         """
         system_prompt = generate_s2_results_evaluation_system_prompt()
-        prompt_framework = PromptFramework.OAI_API
         chat_model = Model(self.model_name, self.model_provider)
-        chat_interface = ModelInterface(prompt_framework, chat_model)
+        chat_interface = ModelInterface(self.prompt_framework, chat_model)
         paper_verdicts = []
         for result in results:
             abstract_chunks = result.get('text', {}).get('abstract', [])
@@ -233,7 +233,7 @@ class CorpusGatherer:
         
         # Add the approved chunks to the vector database
         if approved_chunks:
-            add_to_chromadb(approved_chunks)
+            add_to_chromadb(approved_chunks, chroma_path=self.chromadb_path)
         
         logging.info(f"Added {len(approved_chunks)} chunks from {len(approved_paper_ids)} papers to the vector database.")
 
@@ -274,7 +274,7 @@ if __name__ == "__main__":
         pdf_download_path=pdf_download_path,
         model_name=model_name,
         model_provider=model_provider,
-        vector_db_path=vector_db_path,
+        chromadb_path=vector_db_path,
     )
     corpus_gatherer.gather_and_embed_corpus()
 

@@ -59,6 +59,7 @@ class ClusterAnalyzer:
         prompt_framework=None,
         model_name=None,
         model_provider=None,
+        chromadb_path=None,
     ):
         self.user_goals_text = user_goals_text
         self.max_clusters_to_analyze = max_clusters_to_analyze
@@ -68,8 +69,9 @@ class ClusterAnalyzer:
         self.dimensionality_reduction_method = dimensionality_reduction_method
         self.clustering_method = clustering_method
         self.prompt_framework = prompt_framework or PromptFramework[os.getenv("DEFAULT_PROMPT_FRAMEWORK")]
-        self.model_name = model_name or os.getenv("DEFAULT_MODEL_NAME")
-        self.model_provider = model_provider or os.getenv("DEFAULT_MODEL_PROVIDER")
+        self.model_name = model_name
+        self.model_provider = model_provider
+        self.chromadb_path = chromadb_path
         #assigned internally
         self.cluster_data = None
         self.cluster_summaries = None
@@ -82,6 +84,7 @@ class ClusterAnalyzer:
             reduced_dimensions=self.reduced_dimensions,
             dimensionality_reduction_method=self.dimensionality_reduction_method,
             clustering_method=self.clustering_method,
+            chroma_path=self.chromadb_path
         ).process_and_get_cluster_data()
 
         

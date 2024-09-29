@@ -1,3 +1,5 @@
+
+#OUTDATED
 from literature_reviewer.components.preprocessing.langchain_extract_from_pdf import LangchainPDFTextExtractor
 from literature_reviewer.components.database_operations.chroma_operations import add_to_chromadb, query_chromadb
 

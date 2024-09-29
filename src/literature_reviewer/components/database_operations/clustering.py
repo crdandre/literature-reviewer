@@ -53,7 +53,7 @@ class VectorDBClusteringTool:
         self.top_chunks = None
 
     def load_data(self):
-        collection = get_full_chromadb_collection()
+        collection = get_full_chromadb_collection(chroma_path=self.chroma_path)
         self.chunk_ids = collection.get("ids")
         self.embeddings = collection.get("embeddings")
         self.chunks = collection.get("documents")
