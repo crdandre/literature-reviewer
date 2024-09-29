@@ -44,7 +44,9 @@ class CorpusGatherer:
         pdf_download_path=None,
         model_name=None,
         model_provider=None,
-        vector_db_path=None
+        vector_db_path=None,
+        batch_size=12,
+        inclusion_threshold=0.85
     ):
         self.search_queries = search_queries
         self.user_goals_text = user_goals_text
@@ -54,6 +56,8 @@ class CorpusGatherer:
         self.model_name = model_name or os.getenv("DEFAULT_MODEL_NAME")
         self.model_provider = model_provider or os.getenv("DEFAULT_MODEL_PROVIDER")
         self.vector_db_path = vector_db_path or os.getenv("CHROMA_DB_PATH")
+        self.batch_size = batch_size
+        self.inclusion_threshold = inclusion_threshold
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     def search_s2_for_queries(self):
@@ -233,6 +237,15 @@ class CorpusGatherer:
         
         logging.info(f"Added {len(approved_chunks)} chunks from {len(approved_paper_ids)} papers to the vector database.")
 
+    def gather_and_embed_corpus(self):
+        search_results = self.search_s2_for_queries()
+        formatted_search_results_with_text, all_chunks_with_ids = self.populate_s2_search_results_text(search_results)
+        approved_paper_ids = self.evaluate_formatted_s2_results(
+            results=formatted_search_results_with_text,
+            batch_size=self.batch_size,
+            inclusion_threshold=self.inclusion_threshold
+        )
+        self.embed_approved_search_results(approved_paper_ids=approved_paper_ids, all_chunks_with_ids=all_chunks_with_ids)
 
 if __name__ == "__main__":
     # Example usage
@@ -249,17 +262,9 @@ if __name__ == "__main__":
     search_queries = ["scoliosis spine finite element models d'andrea"]
     corpus_gatherer = CorpusGatherer(
         search_queries=search_queries,
-        user_goals_text=user_goals_text
-    )
-    search_results = corpus_gatherer.search_s2_for_queries()   
-    formatted_search_results_with_text, all_chunks_with_ids = corpus_gatherer.populate_s2_search_results_text(search_results)
-    approved_paper_ids = corpus_gatherer.evaluate_formatted_s2_results(
-        results=formatted_search_results_with_text,
+        user_goals_text=user_goals_text,
         batch_size=12,
-        inclusion_threshold=0.85 #average take on similarity to user's goals based on LLM-derived t/f answers
+        inclusion_threshold=0.85
     )
-    corpus_gatherer.embed_approved_search_results(approved_paper_ids=approved_paper_ids, all_chunks_with_ids=all_chunks_with_ids)
-    
-    
-    
+    corpus_gatherer.gather_corpus()
 

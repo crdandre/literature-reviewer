@@ -69,7 +69,7 @@ Temporarily, I'm using langchain/chroma db because YT shows this repeatedly and 
 - watch [this comparison](https://www.youtube.com/watch?v=6eDh7scJgdw) between CrewAI, AutoGen, LangGraph, and Agent Zero
 - [show-me](https://github.com/marlaman/show-me.git)
 
-### Other Tasks
+### Other Tasks/Good Features to Add
 - Embeddings functionality for ell - work on a PR for that
 - Modularize database and embedding functionality to be untethered to langchain as it currently is
 - Formalize the scheme by which the user_goals are connected to the vec db queries, connected to the s2 queries, connected to the s2 results, connected to the evaluations. Continuity of context! So far, it's checking each step against the raw user_goals prompt rather than any cross checking. between intermediate steps, I believe.
@@ -82,3 +82,4 @@ Temporarily, I'm using langchain/chroma db because YT shows this repeatedly and 
 - Remote/containerized agent itself!
 - Optional human feedback at certain steps - email notifs depending on time required to generate review
 - How to characterize performance as a function of which model is used for each step, chunk size, input tokens per prompt, number of layers of paper search (i.e. finding N related papers, then M related papers for each of the N first papers), number of reflection steps for each relevant process, type of embedding/embedding model, type of dimensionality reduction for embeddings, reduced dimensionality number, clustering method,...add all
+- Saving model run data at intermediate points to loop based on a prior state / loop portions of the whole flow, to not over-use API calls. Possibly by writing detailed logs all in one file each run or saving certain details to a database.

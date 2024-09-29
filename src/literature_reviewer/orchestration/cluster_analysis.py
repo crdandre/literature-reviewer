@@ -86,7 +86,7 @@ class ClusterAnalyzer:
             dimensionality_reduction_method=self.dimensionality_reduction_method,
             clustering_method=self.clustering_method,
         ).process_and_get_cluster_data()
-        logger.info("Cluster data set successfully.")
+
         
     def summarize_each_cluster(self):
         """
@@ -121,13 +121,13 @@ class ClusterAnalyzer:
             logger.info(f"Cluster {i}/{clusters_to_analyze} summarized")
 
         self.cluster_summaries = cluster_summaries
-        logger.info(f"Summarized {clusters_to_analyze} out of {total_clusters} clusters successfully.")
         return cluster_summaries
     
     
     def summarize_cluster_summaries(self):
         """
-        Generate an overarching summary of all cluster summaries.
+        Generate an overarching summary of all cluster summaries, including themes,
+        gaps, unanswered questions, and future directions.
         """
         system_prompt = generate_multi_cluster_theme_summary_sys_prompt(self.user_goals_text)
         chat_model = Model(self.model_name, self.model_provider)
@@ -135,7 +135,7 @@ class ClusterAnalyzer:
 
         # Prepare the input for the LLM
         cluster_summaries_str = "\n\n".join([
-            f"Cluster {cluster}:\n{summary}"  # Remove .json() call
+            f"Cluster {cluster}:\n{summary}"
             for cluster, summary in self.cluster_summaries.items()
         ])
         input_text = f"Cluster Summaries:\n{cluster_summaries_str}"
@@ -148,7 +148,31 @@ class ClusterAnalyzer:
         )
 
         self.multi_cluster_summary = multi_cluster_summary
-        logger.info("Overarching summary of cluster summaries generated successfully.")
+        return multi_cluster_summary
+    
+    
+    def perform_full_cluster_analysis(self):
+        """
+        Performs the full cluster analysis process by calling set_cluster_data,
+        summarize_each_cluster, and summarize_cluster_summaries in sequence.
+        
+        Returns:
+            MultiClusterSummary: The result of summarize_cluster_summaries.
+        """
+        logger.info("Starting full cluster analysis...")
+        
+        # Step 1: Set cluster data
+        self.set_cluster_data()
+        logger.info("Cluster data set successfully.")
+        
+        # Step 2: Summarize each cluster
+        cluster_summaries = self.summarize_each_cluster()
+        logger.info(f"Generated summaries for {len(cluster_summaries)} clusters.")
+        
+        # Step 3: Summarize cluster summaries
+        multi_cluster_summary = self.summarize_cluster_summaries()
+        logger.info("Multi-cluster summary generated successfully.")
+        
         return multi_cluster_summary
 
 # example usage
@@ -166,10 +190,10 @@ if __name__ == "__main__":
     # Example usage
     cluster_analyzer = ClusterAnalyzer(
         user_goals_text=user_goals_text,
-        max_clusters_to_analyze=5,
+        max_clusters_to_analyze=2,
         num_keywords_per_cluster=5,
         num_chunks_per_cluster=5,
-        reduced_dimensions=200,
+        reduced_dimensions=100,
         dimensionality_reduction_method="PCA",
         clustering_method="HDBSCAN"
     )
@@ -188,27 +212,39 @@ if __name__ == "__main__":
         print(pprint.pformat(summary, indent=2, width=120))
         print("")  # Add a blank line between clusters for readability
     
-    
     multi_cluster_summary = cluster_analyzer.summarize_cluster_summaries()
     
-    print(f"{color}Multi-cluster summary:")
-    color = '\033[96m'  # Cyan color for multi-cluster summary
-        
+    print("\n")
+    print(f"{colors[0]}\n================================================")
+    print("Multi-cluster summary:")
+    print("================================================\n")
     try:
         # Attempt to parse the string as JSON
         summary_dict = json.loads(multi_cluster_summary)
         
-        print("Overall Summary Narrative:")
+        print(f"{colors[1]}Overall Summary Narrative:")
         print(pprint.pformat(summary_dict["overall_summary_narrative"], indent=2, width=120))
-        print("\nThemes:")
+        
+        print(f"\n{colors[2]}Themes:")
         for theme in summary_dict["themes"]:
             print(f"- {theme}")
+        
+        print(f"\n{colors[3]}Gaps:")
+        for gap in summary_dict["gaps"]:
+            print(f"- {gap}")
+        
+        print(f"\n{colors[4]}Unanswered Questions:")
+        for question in summary_dict["unanswered_questions"]:
+            print(f"- {question}")
+        
+        print(f"\n{colors[5]}Future Directions:")
+        for direction in summary_dict["future_directions"]:
+            print(f"- {direction}")
     except json.JSONDecodeError:
         # If parsing fails, print the raw string
         print("Raw multi-cluster summary:")
         print(pprint.pformat(multi_cluster_summary, indent=2, width=120))
     
     print(reset_color)
-    
     print("Cluster analysis completed.")
 

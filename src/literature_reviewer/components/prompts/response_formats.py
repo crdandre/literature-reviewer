@@ -47,3 +47,6 @@ class SingleClusterSummary(BaseModel):
 class MultiClusterSummary(BaseModel):
     overall_summary_narrative: str
     themes: List[str]
+    gaps: List[str]
+    unanswered_questions: List[str]
+    future_directions: List[str]

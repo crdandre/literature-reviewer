@@ -80,6 +80,16 @@ class UserMaterialsInput:
         # print(json.dumps(json.loads(semantic_scholar_queries), indent=4))
         print("S2 Query Objects Generated")
         return semantic_scholar_queries
+    
+    def embed_initial_corpus_get_queries(self):
+        self.embed_user_supplied_pdfs()
+        raw_s2_queries = self.search_initial_corpus_for_queries_based_on_goals()
+        # Parse the JSON string to get the list of queries
+        query_objects = json.loads(raw_s2_queries)
+        queries = [obj['query'] for obj in query_objects['s2_queries']]
+        
+        # Return only the parsed list of queries
+        return queries
 
 if __name__ == "__main__":
     with open("/home/christian/literature-reviewer/user_inputs/goal_prompt.txt", "r") as file:

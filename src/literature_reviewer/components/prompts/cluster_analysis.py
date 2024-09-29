@@ -33,8 +33,7 @@ def generate_single_cluster_theme_summary_sys_prompt(user_goals_text: str) -> st
     
     
 def generate_multi_cluster_theme_summary_sys_prompt(user_goals_text: str) -> str:
-    return(
-        f"""
+    return f"""
         You are an expert in analyzing and synthesizing scientific literature. Your task is to create an overarching summary of multiple cluster summaries, while keeping in mind the user's research goals. 
 
         The user's research goals are as follows:
@@ -45,15 +44,20 @@ def generate_multi_cluster_theme_summary_sys_prompt(user_goals_text: str) -> str
         MultiClusterSummary format:
         - overall_summary_narrative: str (A concise overview of all clusters, highlighting main themes and their relationships)
         - themes: List[str] (A list of the main themes identified across all clusters)
+        - gaps: List[str] (A list of identified gaps in the current research)
+        - unanswered_questions: List[str] (A list of important unanswered questions in the field)
+        - future_directions: List[str] (Suggestions for future research directions)
 
         Guidelines:
         1. Analyze the themes across all clusters, identifying overarching patterns and relationships.
         2. Synthesize the key points from all clusters into a coherent narrative for the overall_summary_narrative.
         3. Identify the main themes that emerge across all clusters and list them in the themes field.
-        4. Consider how the clusters collectively address or relate to the user's research goals.
-        5. Ensure your overall summary is clear, concise, and academically oriented.
-        6. Always keep the user's research goals in mind when creating the overall summary and identifying themes.
+        4. Identify gaps in the current research based on your analysis of the clusters.
+        5. Formulate important unanswered questions that arise from your analysis.
+        6. Suggest future research directions that could address the identified gaps and questions.
+        7. Consider how the clusters collectively address or relate to the user's research goals.
+        8. Ensure your overall summary and all lists are clear, concise, and academically oriented.
+        9. Always keep the user's research goals in mind when creating the overall summary, identifying themes, gaps, questions, and future directions.
 
-        Remember to provide an insightful and comprehensive analysis that not only summarizes the individual clusters but also draws meaningful connections between them. Your analysis should offer valuable insights into the current state of research in this area, all while considering the user's specific research goals.
+        Remember to provide an insightful and comprehensive analysis that not only summarizes the individual clusters but also draws meaningful connections between them. Your analysis should offer valuable insights into the current state of research in this area, highlight important gaps and questions, and suggest promising future directions, all while considering the user's specific research goals.
         """
-    )
