@@ -20,7 +20,7 @@ python askdjhalksdjhalksjd.py --topic "why sky blue? you tell Joe."
 
 ```
 
-Inspired by the agentic process utilized by [AI-Scientist] I thought it'd be a more broadly applicable first step for more fields to create an agent which searched for literature related to a topic or local corpus of papers, and review the field, noticing the main themes, effots, gaps, unanswered questions, etc., and created a publishable literature review, or at least an internally useful one, in a short time for a small cost.
+Inspired by the agentic process utilized by [AI-Scientist] I thought it'd be a more broadly applicable first step for more fields to create an agent which searched for literature related to a topic or local corpus of papers, and review the field, noticing the main themes, effots, gaps, unanswered questions, etc., and created a publishable literature review, or at least an internally useful one, in a short time for a small cost. While science itself may not yet be doable by LLMs, I think narrative literature review is a purpose for which they are well-suited, and can produce publishable work with minimal intervention.
 
 Generally, it'd be nice to make this prompt framework agnostic, i.e. LangChain, ell, or anything else. So these, can be relegated to specific components for prompt types. Same goes for any type of framework involved - model type, pdf parsing framework, etc. This modularity does add some complexity and separates functionality into different files more than one might have otherwise done, but the idea is to make this extensible to do anything and event meta-agent rewrite itself at some point. This way I can make the framework more like lego blocks the model can play with (hopefully, not there yet).
 
@@ -80,3 +80,5 @@ Temporarily, I'm using langchain/chroma db because YT shows this repeatedly and 
 - Style rewriting given samples of the user's writing
 - Remote/containerized chromadb
 - Remote/containerized agent itself!
+- Optional human feedback at certain steps - email notifs depending on time required to generate review
+- How to characterize performance as a function of which model is used for each step, chunk size, input tokens per prompt, number of layers of paper search (i.e. finding N related papers, then M related papers for each of the N first papers), number of reflection steps for each relevant process, type of embedding/embedding model, type of dimensionality reduction for embeddings, reduced dimensionality number, clustering method,...add all

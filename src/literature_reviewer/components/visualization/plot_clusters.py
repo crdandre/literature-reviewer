@@ -49,7 +49,5 @@ if __name__ == "__main__":
         dimensionality_reduction_method="PCA",
         clustering_method="HDBSCAN",
     )
-    clustering_tool.load_data()
-    clustering_tool.reduce_dimensionality()
-    clustering_tool.form_clusters()
+    clustering_tool.process_and_get_cluster_data()
     plot_clusters(clustering_tool)

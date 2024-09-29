@@ -35,3 +35,15 @@ class S2ResponseList(BaseModel):
 class CorpusInclusionVerdict(BaseModel):
     verdict: bool
     reason: str
+
+
+class SingleClusterSummary(BaseModel):
+    theme: str
+    key_points: List[str]
+    representative_papers: List[str]
+    relevance_to_user_goal: float
+
+# not sure about this one yet
+class MultiClusterSummary(BaseModel):
+    overall_summary_narrative: str
+    themes: List[str]

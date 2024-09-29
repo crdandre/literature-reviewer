@@ -31,3 +31,6 @@ temp.txt
 
 # Chroma DB
 chroma_db/
+
+# Private notes
+**/private_notes.md
