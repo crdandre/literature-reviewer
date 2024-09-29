@@ -45,9 +45,6 @@ from literature_reviewer.components.prompts.response_formats import (
     MultiClusterSummary
 )
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 class ClusterAnalyzer:
     def __init__(
@@ -78,7 +75,7 @@ class ClusterAnalyzer:
         self.cluster_summaries = None
 
     def set_cluster_data(self):
-        logger.info("Setting cluster data...")
+        logging.info("Setting cluster data...")
         self.cluster_data = VectorDBClusteringTool(
             num_keywords_per_cluster=self.num_keywords_per_cluster,
             num_chunks_per_cluster=self.num_chunks_per_cluster,
@@ -92,7 +89,7 @@ class ClusterAnalyzer:
         """
         Summarize the theme of each cluster using the top keywords and chunks.
         """
-        logger.info("Starting cluster summarization...")
+        logging.info("Starting cluster summarization...")
         system_prompt = generate_single_cluster_theme_summary_sys_prompt(self.user_goals_text)
         chat_model = Model(self.model_name, self.model_provider)
         chat_interface = ModelInterface(self.prompt_framework, chat_model)
@@ -102,7 +99,7 @@ class ClusterAnalyzer:
         clusters_to_analyze = min(self.max_clusters_to_analyze, total_clusters)
 
         for i, (cluster, keywords) in enumerate(list(self.cluster_data['top_keywords_per_cluster'].items())[:clusters_to_analyze], 1):
-            logger.info(f"Summarizing cluster {i}/{clusters_to_analyze} (out of {total_clusters} total clusters)")
+            logging.info(f"Summarizing cluster {i}/{clusters_to_analyze} (out of {total_clusters} total clusters)")
             chunks = self.cluster_data['top_chunks_per_cluster'].get(cluster, [])
             
             # Prepare the input for the LLM
@@ -118,7 +115,8 @@ class ClusterAnalyzer:
             )
 
             cluster_summaries[cluster] = summary
-            logger.info(f"Cluster {i}/{clusters_to_analyze} summarized")
+            logging.info(f"Cluster {i}/{clusters_to_analyze} summarized")
+            logging.debug(f"SUMMARY: {summary}")
 
         self.cluster_summaries = cluster_summaries
         return cluster_summaries
@@ -159,19 +157,19 @@ class ClusterAnalyzer:
         Returns:
             MultiClusterSummary: The result of summarize_cluster_summaries.
         """
-        logger.info("Starting full cluster analysis...")
+        logging.info("Starting full cluster analysis...")
         
         # Step 1: Set cluster data
         self.set_cluster_data()
-        logger.info("Cluster data set successfully.")
+        logging.info("Cluster data set successfully.")
         
         # Step 2: Summarize each cluster
         cluster_summaries = self.summarize_each_cluster()
-        logger.info(f"Generated summaries for {len(cluster_summaries)} clusters.")
+        logging.info(f"Generated summaries for {len(cluster_summaries)} clusters.")
         
         # Step 3: Summarize cluster summaries
         multi_cluster_summary = self.summarize_cluster_summaries()
-        logger.info("Multi-cluster summary generated successfully.")
+        logging.info("Multi-cluster summary generated successfully.")
         
         return multi_cluster_summary
 
@@ -180,7 +178,7 @@ if __name__ == "__main__":
     import json
     import pprint
     from dotenv import load_dotenv
-    load_dotenv()
+    load_dotenv(override=True)
     
     print("Starting cluster analysis...")
 

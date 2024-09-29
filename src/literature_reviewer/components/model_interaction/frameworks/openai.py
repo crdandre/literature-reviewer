@@ -1,29 +1,34 @@
+import logging
 import os
 from openai import OpenAI
 
 
 def entry_chat_call(model_choice, system, user, response_format):
-    client = OpenAI(
-        base_url=os.getenv("OPENROUTER_BASE_URL"),
-        api_key=os.getenv("OPENROUTER_API_KEY"),
-    )
-    model_name = f"{model_choice.provider.lower()}/{model_choice.model_name}"
-    messages = [
-        {"role": "system", "content": system},
-        {"role": "user", "content": user}
-    ]
-    if response_format:
-        completion = client.beta.chat.completions.parse(
-            model=model_name,
-            messages=messages,
-            response_format=response_format
-        )      
-    else: 
-        completion = client.chat.completions.create(
-            model=model_name,
-            messages=messages
+    try:
+        client = OpenAI(
+            base_url=os.getenv("OPENROUTER_BASE_URL"),
+            api_key=os.getenv("OPENROUTER_API_KEY"),
         )
-    return completion.choices[0].message.content    
+        model_name = f"{model_choice.provider.lower()}/{model_choice.model_name}"
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user}
+        ]
+        if response_format:
+            completion = client.beta.chat.completions.parse(
+                model=model_name,
+                messages=messages,
+                response_format=response_format
+            )      
+        else: 
+            completion = client.chat.completions.create(
+                model=model_name,
+                messages=messages
+            )
+        return completion.choices[0].message.content
+    except Exception as e:
+        logging.error(f"An error occurred: {str(e)}")
+        return None
 
 
 def embed(model, input):

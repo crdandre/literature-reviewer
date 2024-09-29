@@ -26,7 +26,16 @@ class ModelInterface:
             f"literature_reviewer.components.model_interaction.frameworks.{module_name}"
         )
     
-    
+    @staticmethod
+    def _clean_prompts(system_prompt: str, user_prompt: str):
+        """
+        Remove leading and trailing newlines from system and user prompts.
+        """
+        cleaned_system_prompt = system_prompt.strip()
+        cleaned_user_prompt = user_prompt.strip()
+        
+        return cleaned_system_prompt, cleaned_user_prompt
+
     def entry_chat_call(
         self,
         system_prompt,
@@ -42,18 +51,21 @@ class ModelInterface:
         that could either be done here or in the framework files
         such as ell.py
         """
+        cleaned_system_prompt, cleaned_user_prompt = self._clean_prompts(
+            system_prompt, user_prompt
+        )
         if self.prompt_framework == PromptFramework.ELL:
             return self.framework_module.entry_chat_call(
                 model=self.model.model_name,
-                system=system_prompt,
-                user=user_prompt,
+                system=cleaned_system_prompt,
+                user=cleaned_user_prompt,
                 response_format=response_format
             )
         if self.prompt_framework == PromptFramework.OAI_API:
             return self.framework_module.entry_chat_call(
                 model_choice=self.model,
-                system=system_prompt,
-                user=user_prompt,
+                system=cleaned_system_prompt,
+                user=cleaned_user_prompt,
                 response_format=response_format
             ) 
         else:

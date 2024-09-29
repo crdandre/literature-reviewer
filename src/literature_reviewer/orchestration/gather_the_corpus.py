@@ -52,13 +52,12 @@ class CorpusGatherer:
         self.user_goals_text = user_goals_text
         self.s2_interface = s2_interface
         self.s2_results_num_eval_loops = s2_results_num_eval_loops
-        self.pdf_download_path = pdf_download_path or os.getenv("PDF_DOWNLOAD_PATH", "pdf_downloads")
-        self.model_name = model_name or os.getenv("DEFAULT_MODEL_NAME")
-        self.model_provider = model_provider or os.getenv("DEFAULT_MODEL_PROVIDER")
-        self.vector_db_path = vector_db_path or os.getenv("CHROMA_DB_PATH")
+        self.pdf_download_path = pdf_download_path
+        self.model_name = model_name
+        self.model_provider = model_provider
+        self.vector_db_path = vector_db_path
         self.batch_size = batch_size
         self.inclusion_threshold = inclusion_threshold
-        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     def search_s2_for_queries(self):
         return self.s2_interface.search_papers_via_queries(self.search_queries)
@@ -189,9 +188,10 @@ class CorpusGatherer:
                 batch_as_string = "\n".join([chunk[1] for chunk in batch]) #joins the content of the chunk not the ID
                 corpus_inclusion_verdict = chat_interface.entry_chat_call(
                     system_prompt=system_prompt,
-                    user_prompt=batch_as_string + "\n\n" + self.user_goals_text,
+                    user_prompt=batch_as_string + self.user_goals_text,
                     response_format=CorpusInclusionVerdict
                 )
+                logging.info(f"INCLUSION VERDICT: {corpus_inclusion_verdict}")
                 # Convert the string to a dictionary
                 verdict_dict = json.loads(corpus_inclusion_verdict)
                 # Append the boolean verdict
@@ -250,12 +250,18 @@ class CorpusGatherer:
 if __name__ == "__main__":
     # Example usage
     from dotenv import load_dotenv
-    load_dotenv()
+    load_dotenv(override=True)
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     
-    logging.info(f"PDF_DOWNLOAD_PATH: {os.getenv('PDF_DOWNLOAD_PATH')}")
-    logging.info(f"DEFAULT_MODEL_NAME: {os.getenv('DEFAULT_MODEL_NAME')}")
-    logging.info(f"DEFAULT_MODEL_PROVIDER: {os.getenv('DEFAULT_MODEL_PROVIDER')}")
-    logging.info(f"CHROMA_DB_PATH: {os.getenv('CHROMA_DB_PATH')}")
+    pdf_download_path = os.getenv("PDF_DOWNLOAD_PATH")
+    model_name = os.getenv("DEFAULT_MODEL_NAME")
+    model_provider = os.getenv("DEFAULT_MODEL_PROVIDER")
+    vector_db_path = os.getenv("CHROMA_DB_PATH")
+
+    logging.info(f"PDF_DOWNLOAD_PATH: {pdf_download_path}")
+    logging.info(f"DEFAULT_MODEL_NAME: {model_name}")
+    logging.info(f"DEFAULT_MODEL_PROVIDER: {model_provider}")
+    logging.info(f"CHROMA_DB_PATH: {vector_db_path}")
     
     with open("/home/christian/literature-reviewer/user_inputs/goal_prompt.txt", "r") as file:
         user_goals_text = file.read()
@@ -263,8 +269,12 @@ if __name__ == "__main__":
     corpus_gatherer = CorpusGatherer(
         search_queries=search_queries,
         user_goals_text=user_goals_text,
-        batch_size=12,
-        inclusion_threshold=0.85
+        batch_size=5,
+        inclusion_threshold=0.5,
+        pdf_download_path=pdf_download_path,
+        model_name=model_name,
+        model_provider=model_provider,
+        vector_db_path=vector_db_path,
     )
-    corpus_gatherer.gather_corpus()
+    corpus_gatherer.gather_and_embed_corpus()
 

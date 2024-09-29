@@ -50,3 +50,19 @@ class MultiClusterSummary(BaseModel):
     gaps: List[str]
     unanswered_questions: List[str]
     future_directions: List[str]
+    
+class SectionWriteup(BaseModel):
+    content: str
+    references: List[str]
+    
+# This is a placeholder/basic review outline model
+# There could be a way to expand on this to have a model per review type
+# i.e. per specific journal structure requirements
+class StructuredOutlineBasic(BaseModel):
+    introduction_section: str
+    literature_overview_section: str
+    overarching_themes_section: str
+    gaps_section: str
+    unanswered_questions_section: str
+    future_directions_section: str
+    conclusion_section: str

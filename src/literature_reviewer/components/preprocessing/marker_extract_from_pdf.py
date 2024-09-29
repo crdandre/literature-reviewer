@@ -7,11 +7,6 @@ import os
 import re
 import subprocess
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
-
 
 class MarkerPDFTextExtractor:
     def __init__(
@@ -50,18 +45,18 @@ class MarkerPDFTextExtractor:
             command.extend(["--min_length", str(self.marker_min_length)])
             
         try:
-            logger.info(f"Starting marker extraction for {self.pdf_inputs_folder}")
+            logging.info(f"Starting marker extraction for {self.pdf_inputs_folder}")
             result = subprocess.run(command, check=True, capture_output=True, text=True)
-            logger.info(f"Marker extraction completed for {self.pdf_inputs_folder}")
-            logger.debug(f"Marker output: {result.stdout}")
+            logging.info(f"Marker extraction completed for {self.pdf_inputs_folder}")
+            logging.debug(f"Marker output: {result.stdout}")
             
-            logger.info(f"Starting corrections for {output_folder}")
+            logging.info(f"Starting corrections for {output_folder}")
             self._correct_new_files(output_folder, existing_files)
-            logger.info(f"Corrections completed for {output_folder}")
+            logging.info(f"Corrections completed for {output_folder}")
 
         except subprocess.CalledProcessError as e:
-            logger.error(f"Error running marker: {e}")
-            logger.error(f"Marker stderr: {e.stderr}")
+            logging.error(f"Error running marker: {e}")
+            logging.error(f"Marker stderr: {e.stderr}")
         
         filename = os.path.basename(self.pdf_inputs_folder)
         extracted_file = os.path.join(output_folder, f"{os.path.splitext(filename)[0]}.md")
@@ -69,7 +64,7 @@ class MarkerPDFTextExtractor:
         if os.path.exists(extracted_file):
             return extracted_file
         else:
-            logger.info(f"Extracted markdown file not found: {extracted_file}")
+            logging.info(f"Extracted markdown file not found: {extracted_file}")
             return None
 
 
@@ -98,8 +93,8 @@ class MarkerPDFTextExtractor:
         try:
             # Use subprocess.run with capture_output=True and text=True
             result = subprocess.run(command, check=True, capture_output=True, text=True)
-            logger.info(f"Marker extraction completed for {self.pdf_inputs_folder}")
-            logger.debug(f"Marker output: {result.stdout}")
+            logging.info(f"Marker extraction completed for {self.pdf_inputs_folder}")
+            logging.debug(f"Marker output: {result.stdout}")
             
             # Apply corrections after the subprocess has finished
             self._correct_new_files(output_folder, existing_files)
@@ -107,11 +102,11 @@ class MarkerPDFTextExtractor:
             if os.path.exists(output_file):
                 return output_file
             else:
-                logger.info(f"Extracted markdown file not found: {output_file}")
+                logging.info(f"Extracted markdown file not found: {output_file}")
                 return None
         except subprocess.CalledProcessError as e:
-            logger.error(f"Error running marker_single: {e}")
-            logger.error(f"Marker stderr: {e.stderr}")
+            logging.error(f"Error running marker_single: {e}")
+            logging.error(f"Marker stderr: {e.stderr}")
             return None
      
     @staticmethod
@@ -124,7 +119,7 @@ class MarkerPDFTextExtractor:
         return existing_files
      
     def _correct_new_files(self, output_folder: str, existing_files: dict):
-        logger.info(f"Existing files: {existing_files}")
+        logging.info(f"Existing files: {existing_files}")
         
         new_files = {}
         for folder_name in os.listdir(output_folder):
@@ -133,23 +128,23 @@ class MarkerPDFTextExtractor:
                 folder_files = set(os.listdir(folder_path))
                 new_files[folder_name] = folder_files - existing_files.get(folder_name, set())
         
-        logger.info(f"New files to correct: {new_files}")
+        logging.info(f"New files to correct: {new_files}")
         
         for folder_name, files in new_files.items():
             folder_path = os.path.join(output_folder, folder_name)
             for filename in files:
                 file_path = os.path.join(folder_path, filename)
-                logger.info(f"Processing file: {file_path}")
+                logging.info(f"Processing file: {file_path}")
                 if filename.endswith('.md'):
                     self._postprocess_converted_md(file_path)
                 elif filename.endswith('.json'):
                     self._postprocess_converted_json(file_path)
                 else:
-                    logger.warning(f"Unrecognized file type: {filename}")
+                    logging.warning(f"Unrecognized file type: {filename}")
 
     @staticmethod
     def _postprocess_converted_md(filename):
-        logger.info(f"Starting MD corrections for {filename}")
+        logging.info(f"Starting MD corrections for {filename}")
         """
         Corrects some easy errors in converted markdown file.
         Corrections are defined as tuples of (pattern, replacement).
@@ -174,11 +169,11 @@ class MarkerPDFTextExtractor:
         with open(filename, 'w', encoding='utf-8') as file:
             file.write(content)
         
-        logger.info(f"Completed MD corrections for {filename}")
+        logging.info(f"Completed MD corrections for {filename}")
 
     @staticmethod
     def _postprocess_converted_json(filename):
-        logger.info(f"Starting JSON corrections for {filename}")
+        logging.info(f"Starting JSON corrections for {filename}")
         """
         Corrects common errors in the converted JSON file.
         Corrections are defined as tuples of (pattern, replacement).
@@ -219,7 +214,7 @@ class MarkerPDFTextExtractor:
         with open(filename, 'w', encoding='utf-8') as file:
             json.dump(corrected_data, file, ensure_ascii=False, indent=2)
         
-        logger.info(f"Completed JSON corrections for {filename}")
+        logging.info(f"Completed JSON corrections for {filename}")
         
         """
         TODO: Somehow, for strange formats there has to be an image +
