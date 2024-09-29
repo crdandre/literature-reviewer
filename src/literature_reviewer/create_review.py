@@ -13,17 +13,17 @@ from literature_reviewer.components.model_interaction.frameworks_and_models impo
 
 def create_literature_review(
     title: str = "YOU FORGOT TO SPECIFY A TITLE, SILLY",
-    model_name: str = "gpt-4o-mini",
+    model_name: str = "gpt-4o-2024-08-06",
     model_provider: str = "OpenAI",
     vec_db_num_queries_to_create_s2_queries: int = 10,
     vec_db_query_num_results_per_query: int = 10,
     num_s2_queries_to_use: int = 10,
     corpus_gatherer_chunks_per_batch: int = 10,
-    corpus_gatherer_inclusion_threshold: float = 0.85,
+    corpus_gatherer_inclusion_threshold: float = 0.80,
     cluster_analyis_max_clusters_to_analyze: int = 10,
     cluster_analysis_num_keywords_per_cluster: int = 10,
     cluster_analysis_num_chunks_per_cluster: int = 10,
-    cluster_analysis_reduced_embedding_dimensionality: int = 200,
+    cluster_analysis_reduced_embedding_dimensionality: int = 100,
     cluster_analyis_dimensionality_reduction_method: str = "PCA",
     cluster_analysis_clustering_method: str = "HDBSCAN",
     

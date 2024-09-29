@@ -86,3 +86,6 @@ Temporarily, I'm using langchain/chroma db because YT shows this repeatedly and 
 - [x] timestamped runs to not overwrite anything
 - [ ] ability to restart or build on an existing run
 - make consistent the way the user goals are used in the system prompt like the later examples
+- reporting on missing pdfs for otherwise potentially relevant research
+- other sources than semanic scholar, to have better chances at finding the research - what other APIs are there?
+- Review AI-Scientist for reflection and revision tactics, there's definitely more that can be done beyond my deterministic flow
