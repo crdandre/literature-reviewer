@@ -98,10 +98,10 @@ def generate_s2_results_evaluation_system_prompt(user_goals: str):
         - reason: A string explaining the rationale for the verdict
 
         Example output format:
-        {
+        {{
             "verdict": true,
             "reason": "Highly relevant to user's goals, recent publication with novel findings that directly address the research question."
-        }
+        }}
 
         Your evaluation should be thorough, professionally critical, and constructive, always keeping the user's research goals as the primary focus. Ensure that your verdict is clear and well-justified. The top priority is to ensure that all materials included are highly relevant to the user's goals.
         """

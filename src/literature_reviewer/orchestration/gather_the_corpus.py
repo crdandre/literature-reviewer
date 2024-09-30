@@ -41,8 +41,6 @@ class CorpusGatherer:
         prompt_framework=None,
         model_name=None,
         model_provider=None,
-        batch_size=12,
-        inclusion_threshold=0.85,
         chromadb_path=None,
     ):
         self.search_queries = search_queries
@@ -55,8 +53,6 @@ class CorpusGatherer:
         self.prompt_framework = prompt_framework
         self.model_name = model_name
         self.model_provider = model_provider
-        self.batch_size = batch_size
-        self.inclusion_threshold = inclusion_threshold
         self.chromadb_path = chromadb_path
 
     def search_s2_for_queries(self):
@@ -169,7 +165,7 @@ class CorpusGatherer:
         pass
     
 
-    def evaluate_formatted_s2_results(self, results, inclusion_threshold):
+    def evaluate_formatted_s2_results(self, results):
         """
         Evaluate papers based on their full abstracts.
         """
@@ -188,7 +184,7 @@ class CorpusGatherer:
                 # If no abstract, try to get abstract from PDF extraction
                 pdf_filename = f"{paper_id}.pdf"
                 pdf_path = os.path.join(self.pdf_download_path, pdf_filename)
-                abstract_text = extract_abstract_from_pdf(pdf_path=pdf_path)
+                abstract_text = extract_abstract_from_pdf(pdf_path=pdf_path, model_interface=chat_interface)
 
             if not abstract_text:
                 logging.warning(f"No abstract found for paper {paper_id}.pdf in {self.pdf_download_path}. Skipping evaluation.")
@@ -200,22 +196,42 @@ class CorpusGatherer:
                 response_format=CorpusInclusionVerdict
             )
             
-            logging.info(f"INCLUSION VERDICT for {paper_id}: {corpus_inclusion_verdict}")
             verdict_dict = json.loads(corpus_inclusion_verdict)
             verdict = verdict_dict['verdict']
+            reason = verdict_dict['reason']
             paper_verdicts.append((paper_id, verdict))
+            logging.info(f"INCLUSION VERDICT for {paper_id}: {verdict}, {reason}")
 
-        # Filter out papers below the inclusion threshold and return their IDs
-        approved_paper_ids = [
-            paper_id
-            for paper_id, verdict in paper_verdicts 
-            if verdict >= inclusion_threshold
-        ]
+        # Filter papers based on the inclusion threshold
+        approved_paper_ids = []
+        excluded_paper_ids = []
+        for paper_id, verdict in paper_verdicts:
+            if verdict:
+                approved_paper_ids.append(paper_id)
+            else:
+                excluded_paper_ids.append(paper_id)
         
         logging.info(f"Number of papers approved: {len(approved_paper_ids)}")
-        logging.info(f"Number of papers rejected: {len(paper_verdicts) - len(approved_paper_ids)}")
+        logging.info(f"Number of papers rejected: {len(excluded_paper_ids)}")
             
-        return approved_paper_ids
+        return approved_paper_ids, excluded_paper_ids
+    
+    
+    def delete_excluded_papers(self, ids_to_delete):
+        """
+        Delete PDF files for papers that were not approved for inclusion.
+        """
+        for paper_id in ids_to_delete:
+            pdf_filename = f"{paper_id}.pdf"
+            pdf_path = os.path.join(self.pdf_download_path, pdf_filename)
+            if os.path.exists(pdf_path):
+                try:
+                    os.remove(pdf_path)
+                    logging.info(f"Deleted PDF for excluded paper: {pdf_filename}")
+                except OSError as e:
+                    logging.error(f"Error deleting PDF {pdf_filename}: {e}")
+            else:
+                logging.warning(f"PDF not found for excluded paper: {pdf_filename}")
 
 
     def embed_approved_search_results(self, approved_paper_ids, all_chunks_with_ids):
@@ -243,38 +259,42 @@ class CorpusGatherer:
 
     def gather_and_embed_corpus(self):
         search_results = self.search_s2_for_queries()
-        formatted_search_results_with_text, all_chunks_with_ids = self.populate_s2_search_results_text(search_results)
-        approved_paper_ids = self.evaluate_formatted_s2_results(
-            results=formatted_search_results_with_text,
-            inclusion_threshold=self.inclusion_threshold
+        formatted_search_results_with_text, all_chunks_with_ids = self.populate_s2_search_results_text(
+            search_results=search_results
         )
+        approved_paper_ids, excluded_paper_ids = self.evaluate_formatted_s2_results(
+            results=formatted_search_results_with_text,
+        )
+        # self.delete_excluded_papers(ids_to_delete=excluded_paper_ids)
         self.embed_approved_search_results(approved_paper_ids=approved_paper_ids, all_chunks_with_ids=all_chunks_with_ids)
 
 if __name__ == "__main__":
     # Example usage
+    from literature_reviewer.components.model_interaction.frameworks_and_models import PromptFramework
+
     from dotenv import load_dotenv
     load_dotenv(override=True)
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     
-    pdf_download_path = os.getenv("PDF_DOWNLOAD_PATH")
-    model_name = os.getenv("DEFAULT_MODEL_NAME")
-    model_provider = os.getenv("DEFAULT_MODEL_PROVIDER")
-    vector_db_path = os.getenv("CHROMA_DB_PATH")
+    pdf_download_path = "/home/christian/literature-reviewer/framework_outputs/gpt4o_mini_mechanobiology_lg_embedding_more_pdfs_20240930_031238/downloaded_pdfs"
+    model_name = "gpt-4o-mini"
+    model_provider = "OpenAI"
+    vector_db_path = "/home/christian/literature-reviewer/framework_outputs/gpt4o_mini_mechanobiology_lg_embedding_more_pdfs_20240930_031238/chroma_db"
 
     logging.info(f"PDF_DOWNLOAD_PATH: {pdf_download_path}")
     logging.info(f"DEFAULT_MODEL_NAME: {model_name}")
     logging.info(f"DEFAULT_MODEL_PROVIDER: {model_provider}")
     logging.info(f"CHROMA_DB_PATH: {vector_db_path}")
+    logging.info(f"DEFAULT_PROMPT_FRAMEWORK: {os.getenv('DEFAULT_PROMPT_FRAMEWORK')}")
     
     with open("/home/christian/literature-reviewer/user_inputs/goal_prompt.txt", "r") as file:
         user_goals_text = file.read()
-    search_queries = ["scoliosis spine finite element models d'andrea"]
+    search_queries = ["automated literature review systematic machine learning"]
     corpus_gatherer = CorpusGatherer(
         search_queries=search_queries,
         user_goals_text=user_goals_text,
-        token_limit=1000,
-        inclusion_threshold=0.5,
         pdf_download_path=pdf_download_path,
+        prompt_framework=PromptFramework[os.getenv("DEFAULT_PROMPT_FRAMEWORK")],
         model_name=model_name,
         model_provider=model_provider,
         chromadb_path=vector_db_path,
