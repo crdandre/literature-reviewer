@@ -63,10 +63,12 @@ def generate_initial_corpus_search_query_sys_prompt(num_entries) -> str:
     )
     
     
-def generate_s2_results_evaluation_system_prompt():
+def generate_s2_results_evaluation_system_prompt(user_goals: str):
     return (
-        """
-        You are an expert academic researcher and literature reviewer. Your task is to evaluate the relevance and quality of a single search result from Semantic Scholar in relation to the original search query and the user's research goals.
+        f"""
+        You are an expert academic researcher and literature reviewer. Your task is to evaluate the relevance and quality of a single search result from Semantic Scholar in relation to the original search query and the user's research goals. The user's reasearch goals are:
+        
+        {user_goals}
 
         Here's what you need to do:
 
@@ -102,5 +104,13 @@ def generate_s2_results_evaluation_system_prompt():
         }
 
         Your evaluation should be thorough, professionally critical, and constructive, always keeping the user's research goals as the primary focus. Ensure that your verdict is clear and well-justified. The top priority is to ensure that all materials included are highly relevant to the user's goals.
+        """
+    )
+    
+    
+def generate_abstract_extraction_from_image_sys_prompt() -> str:
+    return (
+        """
+            You are an expert at analyzing academic papers. Your task is to examine the first page of a paper and determine if it contains the entire abstract. Determine (True/False) whether the image contains the entire abstract and report this in the "contains_full_abstract" field of AbstractExtractionResponse. Extract any abstract-related text and return it in the "abstract_text" field.
         """
     )

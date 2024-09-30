@@ -24,6 +24,7 @@ from literature_reviewer.components.model_interaction.model_call import ModelInt
 from literature_reviewer.components.model_interaction.frameworks_and_models import Model
 from literature_reviewer.components.prompts.literature_search_query import generate_s2_results_evaluation_system_prompt
 from literature_reviewer.components.prompts.response_formats import CorpusInclusionVerdict
+from literature_reviewer.components.preprocessing.image_based_abstract_extraction import extract_abstract_from_pdf
 
 
 class CorpusGatherer:
@@ -31,6 +32,8 @@ class CorpusGatherer:
         self,
         search_queries,
         user_goals_text,
+        chunk_size=800,
+        chunk_overlap=80,
         s2_interface=None,
         s2_results_num_eval_loops=1,
         s2_query_response_length_limit=None,
@@ -44,6 +47,8 @@ class CorpusGatherer:
     ):
         self.search_queries = search_queries
         self.user_goals_text = user_goals_text
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
         self.s2_interface = s2_interface or SemanticScholarInterface(query_response_length_limit=s2_query_response_length_limit)
         self.s2_results_num_eval_loops = s2_results_num_eval_loops
         self.pdf_download_path = pdf_download_path
@@ -78,12 +83,12 @@ class CorpusGatherer:
                     if key not in ['openAccessPdf', 'abstract']
                 }
                 processed_result['text'] = {
-                    'abstract': [],
+                    'abstract': None,
                     'pdf_extraction': []
                 }
                 
                 if result.get('abstract'):
-                    processed_result['text']['abstract'] = [(paper_id, result['abstract'])]
+                    processed_result['text']['abstract'] = result['abstract']
                 
                 if (
                     result.get('isOpenAccess') and result.get('openAccessPdf') and result['openAccessPdf'].get('url') and
@@ -111,11 +116,12 @@ class CorpusGatherer:
                 continue
 
         logging.info(f"Processed {len(processed_results)} valid results")
-
-        # Convert all PDFs to Documents using LangchainPDFTextExtractor
-        print(f"PDF DOWNLOAD PATH: {self.pdf_download_path}")
         
-        extractor = LangchainPDFTextExtractor(input_folder=self.pdf_download_path)
+        extractor = LangchainPDFTextExtractor(
+            input_folder=self.pdf_download_path,
+            chunk_size=self.chunk_size,
+            chunk_overlap=self.chunk_overlap,
+        )
         try:
             all_chunks_with_ids = extractor.pdf_directory_to_chunks_with_ids()
         except TypeError as e:
@@ -163,46 +169,42 @@ class CorpusGatherer:
         pass
     
 
-    def evaluate_formatted_s2_results(self, results, batch_size, inclusion_threshold):
+    def evaluate_formatted_s2_results(self, results, inclusion_threshold):
         """
-        This is somewhat improvised.
-        Make this more meta-agent-y later, for now give a static approach.
-        
-        for each paper in the results list, query the LLM for each batch of chunks whether the
-        content of the chunks relates well to the existing corpus and the user's goals, to vet
-        whether it should be added to the corpus
+        Evaluate papers based on their full abstracts.
         """
-        system_prompt = generate_s2_results_evaluation_system_prompt()
+        system_prompt = generate_s2_results_evaluation_system_prompt(self.user_goals_text)
         chat_model = Model(self.model_name, self.model_provider)
         chat_interface = ModelInterface(self.prompt_framework, chat_model)
         paper_verdicts = []
+
         for result in results:
-            abstract_chunks = result.get('text', {}).get('abstract', [])
-            pdf_extraction_chunks = result.get('text', {}).get('pdf_extraction', [])
-            combined_chunks = abstract_chunks + pdf_extraction_chunks
-            num_batches = (len(combined_chunks) + batch_size - 1) // batch_size
-            this_paper_verdicts = []
-            for batch_index in range(num_batches):
-                start_index = batch_index * batch_size
-                end_index = min((batch_index + 1) * batch_size, len(combined_chunks))
-                batch = combined_chunks[start_index:end_index]
-                batch_as_string = "\n".join([chunk[1] for chunk in batch]) #joins the content of the chunk not the ID
-                corpus_inclusion_verdict = chat_interface.entry_chat_call(
-                    system_prompt=system_prompt,
-                    user_prompt=batch_as_string + self.user_goals_text,
-                    response_format=CorpusInclusionVerdict
-                )
-                logging.info(f"INCLUSION VERDICT: {corpus_inclusion_verdict}")
-                # Convert the string to a dictionary
-                verdict_dict = json.loads(corpus_inclusion_verdict)
-                # Append the boolean verdict
-                this_paper_verdicts.append(verdict_dict['verdict'])
-                logging.info(f"Batch {batch_index + 1} verdict for paper {result['paperId']}: {verdict_dict['verdict']}")
-                
-            average_verdict = sum(this_paper_verdicts) / len(this_paper_verdicts) if this_paper_verdicts else 0
             paper_id = result.get('paperId', 'unknown')
-            paper_verdicts.append((paper_id, average_verdict))
             
+            # Get the abstract text
+            abstract_text = result.get('text', {}).get('abstract')
+            
+            if not abstract_text:
+                # If no abstract, try to get abstract from PDF extraction
+                pdf_filename = f"{paper_id}.pdf"
+                pdf_path = os.path.join(self.pdf_download_path, pdf_filename)
+                abstract_text = extract_abstract_from_pdf(pdf_path=pdf_path)
+
+            if not abstract_text:
+                logging.warning(f"No abstract found for paper {paper_id}.pdf in {self.pdf_download_path}. Skipping evaluation.")
+                continue
+
+            corpus_inclusion_verdict = chat_interface.entry_chat_call(
+                system_prompt=system_prompt,
+                user_prompt=abstract_text,
+                response_format=CorpusInclusionVerdict
+            )
+            
+            logging.info(f"INCLUSION VERDICT for {paper_id}: {corpus_inclusion_verdict}")
+            verdict_dict = json.loads(corpus_inclusion_verdict)
+            verdict = verdict_dict['verdict']
+            paper_verdicts.append((paper_id, verdict))
+
         # Filter out papers below the inclusion threshold and return their IDs
         approved_paper_ids = [
             paper_id
@@ -214,6 +216,7 @@ class CorpusGatherer:
         logging.info(f"Number of papers rejected: {len(paper_verdicts) - len(approved_paper_ids)}")
             
         return approved_paper_ids
+
 
     def embed_approved_search_results(self, approved_paper_ids, all_chunks_with_ids):
         """
@@ -243,7 +246,6 @@ class CorpusGatherer:
         formatted_search_results_with_text, all_chunks_with_ids = self.populate_s2_search_results_text(search_results)
         approved_paper_ids = self.evaluate_formatted_s2_results(
             results=formatted_search_results_with_text,
-            batch_size=self.batch_size,
             inclusion_threshold=self.inclusion_threshold
         )
         self.embed_approved_search_results(approved_paper_ids=approved_paper_ids, all_chunks_with_ids=all_chunks_with_ids)
@@ -270,7 +272,7 @@ if __name__ == "__main__":
     corpus_gatherer = CorpusGatherer(
         search_queries=search_queries,
         user_goals_text=user_goals_text,
-        batch_size=5,
+        token_limit=1000,
         inclusion_threshold=0.5,
         pdf_download_path=pdf_download_path,
         model_name=model_name,
@@ -278,4 +280,3 @@ if __name__ == "__main__":
         chromadb_path=vector_db_path,
     )
     corpus_gatherer.gather_and_embed_corpus()
-

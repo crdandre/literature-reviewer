@@ -31,6 +31,8 @@ class UserMaterialsInput:
         self,
         user_goals_text,
         user_supplied_pdfs_directory,
+        chunk_size=800,
+        chunk_overlap=80,
         num_vec_db_queries=1,
         vec_db_query_num_results=1,
         num_s2_queries = 1,
@@ -41,6 +43,8 @@ class UserMaterialsInput:
     ):
         self.user_goals_text = user_goals_text
         self.user_supplied_pdfs_directory = user_supplied_pdfs_directory
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
         self.num_vec_db_queries = num_vec_db_queries
         self.vec_db_query_num_results = vec_db_query_num_results
         self.num_s2_queries = num_s2_queries
@@ -51,7 +55,9 @@ class UserMaterialsInput:
         
     def embed_user_supplied_pdfs(self):
         chunks_with_ids = LangchainPDFTextExtractor(
-            self.user_supplied_pdfs_directory
+            self.user_supplied_pdfs_directory,
+            chunk_size=self.chunk_size,
+            chunk_overlap=self.chunk_overlap,
         ).pdf_directory_to_chunks_with_ids()
         add_to_chromadb(chunks_with_ids, chroma_path=self.chromadb_path)
         

@@ -15,6 +15,8 @@ def create_literature_review(
     title: str = "YOU FORGOT TO SPECIFY A TITLE, SILLY",
     model_name: str = "gpt-4o-2024-08-06", #gpt-4o-2024-08-06 or gpt-4o-mini or any openrouter model
     model_provider: str = "OpenAI",
+    chunk_size: int = 800,
+    chunk_overlap: int = 80,
     vec_db_num_queries_to_create_s2_queries: int = 64,
     vec_db_query_num_results_per_query: int = 32,
     num_s2_queries_to_use: int = 16,
@@ -34,6 +36,8 @@ def create_literature_review(
         title,
         model_name,
         model_provider,
+        chunk_size,
+        chunk_overlap,
         vec_db_num_queries_to_create_s2_queries,
         vec_db_query_num_results_per_query,
         num_s2_queries_to_use,
@@ -51,6 +55,8 @@ def create_literature_review(
         print(f"Title: {title}")
         print(f"Model Name: {model_name}")
         print(f"Model Provider: {model_provider}")
+        print(f"Chunk Size: {chunk_size}")
+        print(f"Chunk Overlap: {chunk_overlap}")
         print(f"Vector DB Queries to Create S2 Queries: {vec_db_num_queries_to_create_s2_queries}")
         print(f"Vector DB Query Results per Query: {vec_db_query_num_results_per_query}")
         print(f"Number of S2 Queries to Use: {num_s2_queries_to_use}")
@@ -74,7 +80,8 @@ def create_literature_review(
                 break
 
     print_and_confirm_parameters(
-        title, model_name, model_provider, vec_db_num_queries_to_create_s2_queries,
+        title, model_name, model_provider, chunk_size, chunk_overlap, 
+        vec_db_num_queries_to_create_s2_queries,
         vec_db_query_num_results_per_query, num_s2_queries_to_use,
         corpus_gatherer_chunks_per_batch, #num_corpus_gathering_loops,
         corpus_gatherer_inclusion_threshold, cluster_analyis_max_clusters_to_analyze,
@@ -112,6 +119,8 @@ def create_literature_review(
     semantic_scholar_queries = get_initial_search_queries.UserMaterialsInput(
         user_goals_text=user_goals_text,
         user_supplied_pdfs_directory=user_supplied_pdfs_path,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
         num_vec_db_queries=vec_db_num_queries_to_create_s2_queries,
         vec_db_query_num_results=vec_db_query_num_results_per_query,
         num_s2_queries=num_s2_queries_to_use,
@@ -126,6 +135,8 @@ def create_literature_review(
         search_queries=semantic_scholar_queries,
         s2_query_response_length_limit=s2_query_response_length_limit,
         user_goals_text=user_goals_text,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
         batch_size=corpus_gatherer_chunks_per_batch,
         inclusion_threshold=corpus_gatherer_inclusion_threshold,
         pdf_download_path=run_downloaded_pdfs_path,

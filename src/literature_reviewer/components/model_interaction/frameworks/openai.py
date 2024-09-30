@@ -3,7 +3,7 @@ import os
 from openai import OpenAI
 
 
-def entry_chat_call(model_choice, system, user, response_format):
+def entry_chat_call(model_choice, system, user, response_format, base64_image_string):
     try:
         client = OpenAI(
             base_url=os.getenv("OPENROUTER_BASE_URL"),
@@ -12,8 +12,17 @@ def entry_chat_call(model_choice, system, user, response_format):
         model_name = f"{model_choice.provider.lower()}/{model_choice.model_name}"
         messages = [
             {"role": "system", "content": system},
-            {"role": "user", "content": user}
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": user}]
+            }
         ]
+        
+        if base64_image_string is not None:
+            messages[1]["content"].append({
+                "type": "image_url",
+                "image_url": f"data:image/jpeg;base64,{base64_image_string}"
+            })
         if response_format:
             completion = client.beta.chat.completions.parse(
                 model=model_name,

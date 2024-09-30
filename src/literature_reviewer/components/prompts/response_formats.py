@@ -70,3 +70,8 @@ class StructuredOutlineBasic(BaseModel):
     unanswered_questions_section: str
     future_directions_section: str
     conclusion_section: str
+    
+    
+class AbstractExtractionResponse(BaseModel):
+    contains_full_abstract: bool
+    abstract_text: str

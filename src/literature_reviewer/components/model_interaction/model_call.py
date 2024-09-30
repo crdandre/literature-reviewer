@@ -40,7 +40,8 @@ class ModelInterface:
         self,
         system_prompt,
         user_prompt,
-        response_format
+        response_format,
+        image_string=None
     ) -> str:
         """
         Calls an LLM API using the specified prompt framework and provider.
@@ -66,7 +67,8 @@ class ModelInterface:
                 model_choice=self.model,
                 system=cleaned_system_prompt,
                 user=cleaned_user_prompt,
-                response_format=response_format
+                response_format=response_format,
+                base64_image_string=image_string,
             ) 
         else:
             raise NotImplementedError(f"Framework {self.prompt_framework} not implemented yet")
