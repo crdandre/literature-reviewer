@@ -18,7 +18,7 @@ def create_literature_review(
     vec_db_num_queries_to_create_s2_queries: int = 64,
     vec_db_query_num_results_per_query: int = 32,
     num_s2_queries_to_use: int = 16,
-    s2_query_response_length_limit: int = 20,
+    s2_query_response_length_limit: int = 10,
     # num_corpus_gathering_loops: int = 5,
     corpus_gatherer_chunks_per_batch: int = 12,
     corpus_gatherer_inclusion_threshold: float = 0.75,

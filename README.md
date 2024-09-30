@@ -99,3 +99,5 @@ Temporarily, I'm using langchain/chroma db because YT shows this repeatedly and 
 - Ways to regulate how many papers are brought in. Need more papers and more relevant papers! Get inspiration for this too.
 - Branching through the papers near the centers of clusters to extract the exact method details, and lower level cross-themes
 - Perhaps papers should be included on a per-paper basis? or find a better threshold (maybe something like 0.3 is better?)
+- Define meta-agent tasks. I.e. define a keyword search strategy given the user prompts, from X sources, then (2) define an inclusion criteria for the found papers, (3) develop an N level clustering approach to find the main themes, (4) define an approach to go from this to a writeup in the style of the specified journal
+- Define ways to use a different model at each step - i.e. maybe something cheaper for the paper inclusion checks and a better model for the writing tasks / query creations, etc. using 4o for the inclusion checks is a bit much, and there will be more later refinement based on AI-Scientist techniques.
