@@ -31,8 +31,9 @@ class CorpusGatherer:
         self,
         search_queries,
         user_goals_text,
-        s2_interface=SemanticScholarInterface(),
+        s2_interface=None,
         s2_results_num_eval_loops=1,
+        s2_query_response_length_limit=None,
         pdf_download_path=None,
         prompt_framework=None,
         model_name=None,
@@ -43,7 +44,7 @@ class CorpusGatherer:
     ):
         self.search_queries = search_queries
         self.user_goals_text = user_goals_text
-        self.s2_interface = s2_interface
+        self.s2_interface = s2_interface or SemanticScholarInterface(query_response_length_limit=s2_query_response_length_limit)
         self.s2_results_num_eval_loops = s2_results_num_eval_loops
         self.pdf_download_path = pdf_download_path
         self.prompt_framework = prompt_framework

@@ -13,28 +13,39 @@ from literature_reviewer.components.model_interaction.frameworks_and_models impo
 
 def create_literature_review(
     title: str = "YOU FORGOT TO SPECIFY A TITLE, SILLY",
-    model_name: str = "gpt-4o-2024-08-06",
+    model_name: str = "gpt-4o-2024-08-06", #gpt-4o-2024-08-06 or gpt-4o-mini or any openrouter model
     model_provider: str = "OpenAI",
-    vec_db_num_queries_to_create_s2_queries: int = 10,
-    vec_db_query_num_results_per_query: int = 10,
-    num_s2_queries_to_use: int = 10,
-    corpus_gatherer_chunks_per_batch: int = 10,
-    corpus_gatherer_inclusion_threshold: float = 0.80,
-    cluster_analyis_max_clusters_to_analyze: int = 10,
-    cluster_analysis_num_keywords_per_cluster: int = 10,
-    cluster_analysis_num_chunks_per_cluster: int = 10,
-    cluster_analysis_reduced_embedding_dimensionality: int = 100,
+    vec_db_num_queries_to_create_s2_queries: int = 64,
+    vec_db_query_num_results_per_query: int = 32,
+    num_s2_queries_to_use: int = 16,
+    s2_query_response_length_limit: int = 20,
+    # num_corpus_gathering_loops: int = 5,
+    corpus_gatherer_chunks_per_batch: int = 12,
+    corpus_gatherer_inclusion_threshold: float = 0.75,
+    cluster_analyis_max_clusters_to_analyze: int = 999,
+    cluster_analysis_num_keywords_per_cluster: int = 12,
+    cluster_analysis_num_chunks_per_cluster: int = 12,
+    cluster_analysis_reduced_embedding_dimensionality: int = 120,
     cluster_analyis_dimensionality_reduction_method: str = "PCA",
     cluster_analysis_clustering_method: str = "HDBSCAN",
     
 ):
     def print_and_confirm_parameters(
-        title, model_name, model_provider, vec_db_num_queries_to_create_s2_queries,
-        vec_db_query_num_results_per_query, num_s2_queries_to_use,
-        corpus_gatherer_chunks_per_batch, corpus_gatherer_inclusion_threshold,
-        cluster_analyis_max_clusters_to_analyze, cluster_analysis_num_keywords_per_cluster,
-        cluster_analysis_num_chunks_per_cluster, cluster_analysis_reduced_embedding_dimensionality,
-        cluster_analyis_dimensionality_reduction_method, cluster_analysis_clustering_method
+        title,
+        model_name,
+        model_provider,
+        vec_db_num_queries_to_create_s2_queries,
+        vec_db_query_num_results_per_query,
+        num_s2_queries_to_use,
+        # num_corpus_gathering_loops,
+        corpus_gatherer_chunks_per_batch,
+        corpus_gatherer_inclusion_threshold,
+        cluster_analyis_max_clusters_to_analyze,
+        cluster_analysis_num_keywords_per_cluster,
+        cluster_analysis_num_chunks_per_cluster,
+        cluster_analysis_reduced_embedding_dimensionality,
+        cluster_analyis_dimensionality_reduction_method,
+        cluster_analysis_clustering_method
     ):
         print("Review parameters:")
         print(f"Title: {title}")
@@ -43,6 +54,7 @@ def create_literature_review(
         print(f"Vector DB Queries to Create S2 Queries: {vec_db_num_queries_to_create_s2_queries}")
         print(f"Vector DB Query Results per Query: {vec_db_query_num_results_per_query}")
         print(f"Number of S2 Queries to Use: {num_s2_queries_to_use}")
+        # print(f"Number of Corpus Gathering Loops: {num_corpus_gathering_loops}")
         print(f"Corpus Gatherer Chunks per Batch: {corpus_gatherer_chunks_per_batch}")
         print(f"Corpus Gatherer Inclusion Threshold: {corpus_gatherer_inclusion_threshold}")
         print(f"Max Clusters to Analyze: {cluster_analyis_max_clusters_to_analyze}")
@@ -52,7 +64,7 @@ def create_literature_review(
         print(f"Dimensionality Reduction Method: {cluster_analyis_dimensionality_reduction_method}")
         print(f"Clustering Method: {cluster_analysis_clustering_method}")
         
-        print("\nPress Enter to confirm and continue, or ESC to cancel...")
+        print("\nPress Enter to confirm and continue, or Ctrl+C to cancel...")
         while True:
             key = input()
             if key == '\x1b':  # ESC key
@@ -64,9 +76,10 @@ def create_literature_review(
     print_and_confirm_parameters(
         title, model_name, model_provider, vec_db_num_queries_to_create_s2_queries,
         vec_db_query_num_results_per_query, num_s2_queries_to_use,
-        corpus_gatherer_chunks_per_batch, corpus_gatherer_inclusion_threshold,
-        cluster_analyis_max_clusters_to_analyze, cluster_analysis_num_keywords_per_cluster,
-        cluster_analysis_num_chunks_per_cluster, cluster_analysis_reduced_embedding_dimensionality,
+        corpus_gatherer_chunks_per_batch, #num_corpus_gathering_loops,
+        corpus_gatherer_inclusion_threshold, cluster_analyis_max_clusters_to_analyze,
+        cluster_analysis_num_keywords_per_cluster, cluster_analysis_num_chunks_per_cluster,
+        cluster_analysis_reduced_embedding_dimensionality,
         cluster_analyis_dimensionality_reduction_method, cluster_analysis_clustering_method
     )
     
@@ -111,6 +124,7 @@ def create_literature_review(
     # Initialize and run CorpusGatherer to embed user info/pdfs
     gather_the_corpus.CorpusGatherer(
         search_queries=semantic_scholar_queries,
+        s2_query_response_length_limit=s2_query_response_length_limit,
         user_goals_text=user_goals_text,
         batch_size=corpus_gatherer_chunks_per_batch,
         inclusion_threshold=corpus_gatherer_inclusion_threshold,

@@ -4,9 +4,12 @@ Handles extracting text from pdf using langchain's inbuilt functionality
 Thanks to: https://github.com/pixegami/rag-tutorial-v2/blob/main/populate_database.py
 For logic here. For some reason I had to turn it into a class...
 """
-from langchain_community.document_loaders import PyPDFDirectoryLoader
+import os, logging
+from langchain_community.document_loaders import PyPDFDirectoryLoader, PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.schema.document import Document
+from pypdf.errors import PdfStreamError, PdfReadError
+
 
 class LangchainPDFTextExtractor:
     def __init__(
@@ -27,10 +30,34 @@ class LangchainPDFTextExtractor:
         chunks = self._split_documents(documents)
         return self._calculate_chunk_ids(chunks)
 
-
+    
     def _load_documents(self):
-        document_loader = PyPDFDirectoryLoader(self.input_folder)
-        return document_loader.load()
+        all_documents = []
+        for filename in os.listdir(self.input_folder):
+            if filename.lower().endswith('.pdf'):
+                file_path = os.path.join(self.input_folder, filename)
+                try:
+                    # Check if the file is actually a PDF
+                    with open(file_path, 'rb') as f:
+                        if not f.read(5).startswith(b'%PDF-'):
+                            logging.warning(f"File {filename} is not a valid PDF. Skipping.")
+                            continue
+
+                    loader = PyPDFLoader(file_path)
+                    documents = loader.load()
+                    all_documents.extend(documents)
+                    logging.info(f"Successfully loaded {filename}")
+                except (PdfStreamError, PdfReadError) as e:
+                    logging.error(f"Error loading PDF {filename}: {str(e)}")
+                except Exception as e:
+                    logging.error(f"Unexpected error loading PDF {filename}: {str(e)}")
+        
+        if not all_documents:
+            logging.warning("No documents were successfully loaded.")
+        else:
+            logging.info(f"Successfully loaded {len(all_documents)} documents in total.")
+        
+        return all_documents
 
 
     def _split_documents(self, documents: list[Document]):

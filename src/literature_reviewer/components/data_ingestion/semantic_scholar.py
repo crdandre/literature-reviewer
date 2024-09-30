@@ -17,7 +17,7 @@ class SemanticScholarInterface:
     def __init__(
         self,
         rate_limit: float = 1.0,
-        query_result_length: int = 3,
+        query_response_length_limit: int = 3,
     ):
         """
         Initializes the searcher with the given API key and rate limit.
@@ -31,7 +31,7 @@ class SemanticScholarInterface:
         self.rate_limit = rate_limit
         self.base_url = os.getenv("S2_BASE_GRAPH_URL")
         self.fields = os.getenv("S2_PAPER_FIELDS")
-        self.query_result_length = query_result_length
+        self.query_response_length_limit = query_response_length_limit
 
     
     @staticmethod
@@ -55,7 +55,7 @@ class SemanticScholarInterface:
         for query in queries:
             params = {
                 "query": query,
-                "limit": self.query_result_length,
+                "limit": self.query_response_length_limit,
                 "fields": self.fields,
             }
 
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     
     load_dotenv()
     
-    s2_interface = SemanticScholarInterface(query_result_length=5)
+    s2_interface = SemanticScholarInterface(query_response_length_limit=5)
     query = "Patient-specific finite element modeling of scoliotic curve progression"
     results = s2_interface.search_papers_via_queries([query])
     

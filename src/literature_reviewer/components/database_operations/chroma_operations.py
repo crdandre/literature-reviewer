@@ -9,7 +9,7 @@ from literature_reviewer.components.model_interaction.frameworks.langchain impor
 import numpy as np
 import pandas as pd
 
-def add_to_chromadb(chunks_with_ids: list[Document], chroma_path: str, model: str = "text-embedding-3-small"):
+def add_to_chromadb(chunks_with_ids: list[Document], chroma_path: str, model: str = "text-embedding-3-large"):
     # Load the existing database.
     db = Chroma(
         persist_directory=chroma_path, embedding_function=get_embedding_function(model)
@@ -39,7 +39,7 @@ def query_chromadb(
     query_text: str,
     num_results: int = 5,
     chroma_path: str = "chroma_db",
-    model: str = "text-embedding-3-small"
+    model: str = "text-embedding-3-large"
 ) -> str:
     db = Chroma(persist_directory=chroma_path, embedding_function=get_embedding_function(model))
     result_list = db.similarity_search_with_score(query_text, k=num_results)

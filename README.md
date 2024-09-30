@@ -56,6 +56,10 @@ Temporarily, I'm using langchain/chroma db because YT shows this repeatedly and 
 ### Other scraping
 - [paper-scraper](https://github.com/blackadad/paper-scraper)
 
+### Other literature review related
+- [OpenRead in Video](https://www.youtube.com/watch?v=fYZaMXA8Ss0)
+- [Alternatives to Semantic Scholar](https://www.youtube.com/watch?v=cN_gqxLMkNY&t=382s)
+    - Using Lens, Research Rabbit, even Perplexity could be nice ways to search! Does perplexity have an API? [yes](https://docs.perplexity.ai/home)
 ### More ways to guide the output of these parsing steps
 - LLM checking out an image of the pdf vs the listed section headings and titles, and checking the high level things (modifying the md and json files accordingly)
 - Cleaning all non-printable characters (i.e. non-space "orange-box" characters as well to keep data as consistent and clean as possible)
@@ -89,3 +93,9 @@ Temporarily, I'm using langchain/chroma db because YT shows this repeatedly and 
 - reporting on missing pdfs for otherwise potentially relevant research
 - other sources than semanic scholar, to have better chances at finding the research - what other APIs are there?
 - Review AI-Scientist for reflection and revision tactics, there's definitely more that can be done beyond my deterministic flow
+- Handling PDF Stream Errors...trying again on successful call but interrupted stream...
+- Don't redo redundant embeddings on loops for gathering corpus. Also, delete unusable papers, logging what the initial search brought in and what was removed.
+- Implement AI-Scientist-like Convergence Behavior to better reflect/self modify throughout the process
+- Ways to regulate how many papers are brought in. Need more papers and more relevant papers! Get inspiration for this too.
+- Branching through the papers near the centers of clusters to extract the exact method details, and lower level cross-themes
+- Perhaps papers should be included on a per-paper basis? or find a better threshold (maybe something like 0.3 is better?)
