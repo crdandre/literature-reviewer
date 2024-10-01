@@ -103,3 +103,36 @@ Temporarily, I'm using langchain/chroma db because YT shows this repeatedly and 
 - Define ways to use a different model at each step - i.e. maybe something cheaper for the paper inclusion checks and a better model for the writing tasks / query creations, etc. using 4o for the inclusion checks is a bit much, and there will be more later refinement based on AI-Scientist techniques.
 - Systematic review publication exclution diagram generation! Important.
 - Grabbing relevant figures from the best papers.
+
+---
+# Digested To-Do From Above
+## Overall
+- Optimal reflection connections (i.e. reflect between which steps, how many times, with what type of prompt, with what type of corrective action or lack thereof?)
+- Degree of deterministic workflow vs agent permissions to rewrite code, change steps around etc (this would require making sure the "blocks" are modular and can be rearranged while maintaining data format compatability)
+
+## Literature Search
+- Refining query generation
+- Expanding avenues to find relevant research
+    - Google Scholar API
+    - Perplexity API
+- Improving analysis of abstracts to determine whether they're related to the seed ideas/corpus
+- Improving analysis of each paper to extract the key themes/blurbs wrt user goals
+
+## Literature Analysis
+- Optimal Chunking/embedding approach
+- Optimal dimensionality reduction strategy
+- Optimal clustering strategy
+- Optimal idea generation from the clustering analysis (both for keywords and chunks)
+- Reflections with found corpus + other sources (maybe perplexity here) to rate the novelty of an idea (to check whether or not literature can be found which significantly overlaps with an idea proposal)
+
+## Writing
+- Flexible flow for turning a grouping of ideas/keywords into an outline, and gathering the specific details to turn that outline into a full writeup.
+- Means to gather relevant figures from key papers to illustrate the strongest points.
+- Means to generate a flowchart for literature searching
+
+## Review
+- Gather relevant publications on guidance for systematic literature review, or established review criteria.
+- Reflect to the relevant steps to iterate on certain parts of the process. I.e. at step 5, reflect on step 2, then propagate back through to step 5. This step determines the correct level to reflect back toward.
+
+## Output Formatting
+- Given a structured writeup format, fill a template (i.e. arxiv, journal format, etc.). Use a model to evaluate whether the target format has been correctly filled with the output review material.
