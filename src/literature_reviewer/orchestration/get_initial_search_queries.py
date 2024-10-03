@@ -26,7 +26,7 @@ from literature_reviewer.components.prompts.response_formats import (
 )
 
 
-class UserMaterialsInput:
+class ResearchQueryGenerator:
     def __init__(
         self,
         user_goals_text,

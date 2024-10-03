@@ -48,6 +48,8 @@ Temporarily, I'm using langchain/chroma db because YT shows this repeatedly and 
     - Yet to try. Seems only cloud-based...
 - [unstructured](https://github.com/Unstructured-IO/unstructured)
     - Yet to try. Seems related.
+- [pdf2image](https://pypi.org/project/pdf2image/)
+    - Great for creating input images to pass into models to extract text from a page with confusing formatting.
  
 ### Optimized RAG Frameworks instead of custom PDF Parsing?
 - [PaperQA2](https://github.com/Future-House/paper-qa?tab=readme-ov-file)
@@ -109,12 +111,26 @@ Temporarily, I'm using langchain/chroma db because YT shows this repeatedly and 
 ## Overall
 - Optimal reflection connections (i.e. reflect between which steps, how many times, with what type of prompt, with what type of corrective action or lack thereof?)
 - Degree of deterministic workflow vs agent permissions to rewrite code, change steps around etc (this would require making sure the "blocks" are modular and can be rearranged while maintaining data format compatability)
+- For iterative analysis of an idea, text, etc, add the prior chat context to the current prompt rather than using a new naive prompt
+- Prompt Engineering
+    - [Video Overview](https://www.youtube.com/watch?v=5k1zkYCuF-8)
+        - Zero-shot (no example, just task request, relies on model training data) vs Few-shot prompting (given an example, do the thing)
+        - Chain of though (CoT), each step is analyzed (each step can be few-shot as well), but the incremental steps are the main idea here, to get the model to reason
+    - [xjdr X post on CoT tokens](https://x.com/_xjdr/status/1840782196921233871)
+        - Literally tell the model to "Wait..." at key points
+    - Clarify system vs assistant vs user optimization (noting that o1 doesn't have anything but the user I think)
+    - Effect of obscuration by moderation (try unmoderated models, if possible)
+- Saving every piece of information from start to end, so that parameters, models, flow structure, etc. can all be connected and analyzed
+    - Sensitivity study. Establish a gold-standard for a current possible novel literature review from a human expert and establish a metric (i.e. number of topics hit, or points from studies discussed) which can estimate how well the framework is doing as a f(some input(s)).
 
 ## Literature Search
 - Refining query generation
 - Expanding avenues to find relevant research
-    - Google Scholar API
-    - Perplexity API
+    - [Google Scholar API (unofficial)](https://serpapi.com/google-scholar-api)
+    - [Perplexity API](https://docs.perplexity.ai/home)
+    - [arXiv API](https://info.arxiv.org/help/api/index.html)/
+    - ...several others
+- Method to ensure no duplicates
 - Improving analysis of abstracts to determine whether they're related to the seed ideas/corpus
 - Improving analysis of each paper to extract the key themes/blurbs wrt user goals
 
