@@ -5,7 +5,7 @@ Thanks to: https://github.com/pixegami/rag-tutorial-v2/blob/main/populate_databa
 For logic here. For some reason I had to turn it into a class...
 """
 import os, logging
-from langchain_community.document_loaders import PyPDFDirectoryLoader, PyPDFLoader
+from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.schema.document import Document
 from pypdf.errors import PdfStreamError, PdfReadError

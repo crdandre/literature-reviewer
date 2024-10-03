@@ -27,7 +27,7 @@ from literature_reviewer.components.prompts.review_writing import (
 )
 from literature_reviewer.components.model_interaction.model_call import ModelInterface
 from literature_reviewer.components.model_interaction.frameworks_and_models import Model
-from literature_reviewer.components.prompts.response_formats import StructuredOutlineBasic, SectionWriteup
+from literature_reviewer.components.input_output_models.response_formats import StructuredOutlineBasic, SectionWriteup
 from literature_reviewer.components.database_operations.chroma_operations import query_chromadb
 
 

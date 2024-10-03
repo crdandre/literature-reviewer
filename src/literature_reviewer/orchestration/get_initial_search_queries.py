@@ -20,7 +20,7 @@ from literature_reviewer.components.prompts.literature_search_query import (
     generate_literature_search_query_sys_prompt,
     generate_initial_corpus_search_query_sys_prompt,
 )
-from literature_reviewer.components.prompts.response_formats import (
+from literature_reviewer.components.input_output_models.response_formats import (
     SeedDataQueryList,
     S2QueryList,
 )

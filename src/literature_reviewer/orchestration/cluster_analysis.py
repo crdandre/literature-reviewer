@@ -40,7 +40,7 @@ from literature_reviewer.components.model_interaction.frameworks_and_models impo
     PromptFramework,
     Model,
 )
-from literature_reviewer.components.prompts.response_formats import (
+from literature_reviewer.components.input_output_models.response_formats import (
     SingleClusterSummary,
     MultiClusterSummary
 )
