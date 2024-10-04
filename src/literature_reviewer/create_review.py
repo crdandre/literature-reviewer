@@ -73,6 +73,32 @@ def create_literature_review(
     #defaults
     prompt_framework = PromptFramework[os.getenv("DEFAULT_PROMPT_FRAMEWORK")]
 
+
+    """
+    Would this work?
+    
+    Define ProcessStep as a class containing a class type such as ResearchQueryGenerator
+    and a list of arguments as fields in ProcessStep. This makes it doable for the LLM to
+    manipulate process steps(?). ReflectionOperator can be passed in as well. Then all
+    process steps are wrapped in a ReflectionManager maybe to configure the cross-connections
+    
+    Pros: Clean
+    Cons: Pre-determined connections for where reflection occurs.
+    
+    Some bits.
+    WorkflowManager
+    *Task + Reflection Manager?
+    Existing Class
+    
+    All classes get all input params and select from them as they need? Seems like it'd help things flow.
+    
+    0. define model interface(s)
+    1. Define tasks (Specific Tasks inherit base task)
+    2. Define process steps
+    3. define reflection operator
+    4. define workflow manager
+    """
+
     # Get semantic scholar queries
     query_generator = get_initial_search_queries.ResearchQueryGenerator(
         user_goals_text=user_goals_text,

@@ -16,7 +16,8 @@ Ideas:
 
 Initial o1 example
 """
-from typing import List
+from typing import List, Optional, Dict
+import json
 from literature_reviewer.components.input_output_models.process_interfacing import ProcessStep
 from literature_reviewer.components.model_interaction.model_call import ModelInterface
 
@@ -27,16 +28,20 @@ class ReflectionOperator:
         output_objective: str,
         user_context: str,
         model_interface: ModelInterface,
-        max_iterations: int = 1
+        max_iterations: int = 3
     ):
         self.input_steps = input_steps
         self.output_objective = output_objective
         self.user_context = user_context
         self.model_interface = model_interface
         self.max_iterations = max_iterations
+        self.current_iteration = 0
 
     def perform_reflection(self):
-        for iteration in range(self.max_iterations):
+        while self.current_iteration < self.max_iterations:
+            self.current_iteration += 1
+            print(f"Reflection Iteration: {self.current_iteration}")
+
             # Collect outputs from input steps
             input_data = self.collect_input_data()
             
@@ -47,7 +52,7 @@ class ReflectionOperator:
             reflection_output = self.model_interface.entry_chat_call(
                 system_prompt="Your reflection system prompt here.",
                 user_prompt=prompt,
-                response_format=None  # Define appropriate response format if needed
+                response_format="json"  # Assuming JSON format for structured output
             )
             
             # Process the reflection output
@@ -56,16 +61,19 @@ class ReflectionOperator:
             # Apply adjustments if necessary
             if adjustments_needed:
                 self.apply_adjustments(adjustments_needed)
+                print(f"Adjustments applied based on reflection: {adjustments_needed}")
             else:
-                # If no adjustments are needed, you can break early
-                break
+                print("No adjustments needed. Reflection process is coherent.")
+                break  # Exit early if no adjustments are needed
 
     def collect_input_data(self) -> str:
-        # Collect outputs from the specified input steps
         collected_data = ""
         for step in self.input_steps:
-            # Assuming each ProcessStep has an 'output_data' attribute
-            collected_data += f"\nStep {step.name} Output:\n{step.output_data}\n"
+            collected_data += f"\nStep {step.name}:\n"
+            collected_data += f"Task: {step.task}\n"
+            collected_data += "Subtasks:\n"
+            for subtask in step.subtasks:
+                collected_data += f"- {subtask}\n"
         return collected_data
 
     def construct_prompt(self, input_data: str) -> str:
@@ -80,18 +88,46 @@ Output Objective:
 Input Data from Selected Steps:
 {input_data}
 
-Please reflect on whether the input data aligns with the user's goals and the output objective. Provide suggestions for improvements or confirm that the outputs are coherent and satisfactory.
+Please reflect on whether the input data aligns with the user's goals and the output objective. Provide suggestions for improvements or confirm that the outputs are coherent and satisfactory. If adjustments are needed, specify them in a JSON format as follows:
+
+{{
+    "adjustments": {{
+        "step_name": "Name of the step to adjust",
+        "modification": "Description of the required modification"
+    }}
+}}
 """
         return prompt
 
-    def process_reflection(self, reflection_output: str):
-        # Analyze the reflection output from the LLM
-        # Decide whether adjustments are needed and return them
-        # This could involve parsing the output and extracting actionable suggestions
-        adjustments = None  # Replace with actual processing logic
-        return adjustments
+    def process_reflection(self, reflection_output: str) -> Optional[Dict[str, str]]:
+        """
+        Analyze the reflection output from the LLM.
+        Expecting a JSON response with adjustments if needed.
+        Example:
+        {
+            "adjustments": {{
+                "step_name": "Cluster Analysis",
+                "modification": "Increase the number of clusters to better capture thematic diversity."
+            }}
+        }
+        """
+        try:
+            reflection_data = json.loads(reflection_output)
+            adjustments = reflection_data.get("adjustments", None)
+            return adjustments
+        except json.JSONDecodeError:
+            print("Failed to decode reflection output. Assuming no adjustments.")
+            return None
 
-    def apply_adjustments(self, adjustments):
-        # Apply the suggested adjustments to the input steps or their outputs
-        # This method would modify the steps or data in place or create updated versions
-        pass
+    def apply_adjustments(self, adjustments: Dict[str, str]):
+        """
+        Apply the suggested adjustments to the input steps or their outputs.
+        """
+        for step in self.input_steps:
+            if step.name == adjustments.get("step_name"):
+                # Example adjustment: Modify the task or subtasks based on the reflection
+                modification = adjustments.get("modification")
+                print(f"Applying modification to step '{step.name}': {modification}")
+                # Here, implement the logic to modify the step based on the instruction
+                # This is a placeholder and should be replaced with actual modification logic
+                step.task = modification  # Simplistic example

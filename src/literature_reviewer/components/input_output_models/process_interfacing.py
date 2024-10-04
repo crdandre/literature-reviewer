@@ -10,6 +10,7 @@ from typing import List
 
 class ProcessStep(BaseModel):
     name: str
+    task: str
     subtasks: List[str]
     
 
