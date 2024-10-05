@@ -41,3 +41,6 @@ chroma_db/
 !**/user_inputs/user_supplied_pdfs/.gitkeep
 
 old_pre_run_folders/
+
+# Reference files/code
+ref/

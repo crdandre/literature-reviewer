@@ -111,7 +111,7 @@ if __name__ == "__main__":
     model_name = "gpt-4o-mini"
     model_provider = "OpenAI"
 
-    user_materials_input = UserMaterialsInput(
+    user_materials_input = ResearchQueryGenerator(
         user_goals_text=user_goals_text,
         user_supplied_pdfs_directory=user_supplied_pdfs_directory,
         num_vec_db_queries=num_vec_db_queries,

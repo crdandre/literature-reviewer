@@ -7,11 +7,11 @@ May it generate useful ideas.
 """
 import argparse, datetime, logging, os
 from dotenv import load_dotenv
-from literature_reviewer.orchestration import (
+from literature_reviewer.tasks import (
+    analyze_clusters,
     get_initial_search_queries,
     gather_the_corpus,
-    cluster_analysis,
-    review_creation
+    write_review
 )
 from literature_reviewer.components.model_interaction.frameworks_and_models import PromptFramework
 
@@ -33,7 +33,6 @@ def create_literature_review(
     cluster_analysis_reduced_embedding_dimensionality: int = 120,
     cluster_analyis_dimensionality_reduction_method: str = "PCA",
     cluster_analysis_clustering_method: str = "HDBSCAN",
-    
 ):
     def print_and_confirm_parameters(**kwargs):
         print("Review parameters:")
@@ -132,7 +131,7 @@ def create_literature_review(
     ).gather_and_embed_corpus()
 
     # Summarize Clusters in reduced-dimension embeddings
-    clusters_summary = cluster_analysis.ClusterAnalyzer(
+    clusters_summary = analyze_clusters.ClusterAnalyzer(
         user_goals_text=user_goals_text,
         max_clusters_to_analyze=cluster_analyis_max_clusters_to_analyze,
         num_keywords_per_cluster=cluster_analysis_num_keywords_per_cluster,
@@ -147,7 +146,7 @@ def create_literature_review(
     ).perform_full_cluster_analysis()
 
         
-    review_outline = review_creation.ReviewAuthor(
+    review_outline = write_review.ReviewAuthor(
         user_goals_text=user_goals_text,
         multi_cluster_summary=clusters_summary,
         materials_output_path=run_writeup_materials_output_path,
