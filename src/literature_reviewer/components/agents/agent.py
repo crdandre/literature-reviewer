@@ -10,12 +10,21 @@ This simulates CoT-ish behavior. Alternatively calls to o1
 will have to be handled differently...
 --> could have an Agent class which could beciome LLMAgent
 or O1Agent depending on inputs
+
+
+Additions:
+1. [ ] Better printout
+2. [ ] Requiring sources/citations baked into classes as option
+3. [ ] Efficient use of prior context, rather than pure accumulation?
+
 """
+
+
 import datetime, json, logging, sys
 from pydantic import BaseModel
 from typing import List, Dict
 from literature_reviewer.components.agents.model_call import ModelInterface
-from literature_reviewer.components.tool import BaseTool
+from literature_reviewer.components.tool import BaseTool, ToolResponse
 from datetime import datetime, timezone
 
 
@@ -28,7 +37,7 @@ class AgentPlanStep(BaseModel):
     step: str
     reason: str
     prompt: str
-    tool_name: str | None
+    tool_name: str | None = None
 
 
 class AgentPlan(BaseModel):
@@ -55,9 +64,27 @@ class AgentPlan(BaseModel):
             formatted_text += f"\n{i}. {step.step}\n"
             formatted_text += f"   -> Reason: {step.reason}\n"
             formatted_text += f"   -> Prompt: {step.prompt}\n"
-            formatted_text += f"   -> Tool Name: {step.tool_name if step.tool_name else 'None'}\n"
-            if i < len(self.steps):
-                formatted_text += "   " + "-" * 40 + "\n"
+            formatted_text += f"   -> Tool Name: {step.tool_name if step.tool_name else 'None'}"
+        return formatted_text
+
+
+class PlanStepResult(BaseModel):
+    plan_step: AgentPlanStep
+    result: ToolResponse
+
+    
+class PlanStepResultList(BaseModel):
+    plan_steps: List[PlanStepResult]
+    
+    def as_formatted_text(self) -> str:
+        formatted_text = "Plan Step Results:\n"
+        for i, step_result in enumerate(self.plan_steps, 1):
+            formatted_text += f"\n{i}. Step: {step_result.plan_step.step}\n\n"
+            formatted_text += f"   Tool: {step_result.plan_step.tool_name if step_result.plan_step.tool_name else 'None'}\n\n"
+            formatted_text += f"   Result:\n"
+            formatted_text += f"   Output: {step_result.result.output.strip()}\n\n"
+            if step_result.result.explanation:
+                formatted_text += f"   Explanation: {step_result.result.explanation.strip()}"
         return formatted_text
 
 
@@ -67,12 +94,12 @@ class AgentReviewVerdict(BaseModel):
     revision_location: str | None
     
     def as_formatted_text(self) -> str:
-        formatted_text = f"Review Verdict:\n"
-        formatted_text += f"Verdict: {'Passed' if self.verdict else 'Failed'}\n"
+        formatted_text = f"Review Verdict:\n\n"
+        formatted_text += f"Verdict: {'Passed' if self.verdict else 'Failed'}\n\n"
         if self.recommendation:
-            formatted_text += f"Recommendation: {self.recommendation}\n"
+            formatted_text += f"Recommendation: {self.recommendation}\n\n"
         if self.revision_location:
-            formatted_text += f"Revision Location: {self.revision_location}\n"
+            formatted_text += f"Revision Location: {self.revision_location}"
         return formatted_text
         
 
@@ -101,8 +128,29 @@ class AgentProcessOutput(BaseModel):
     final_review: str | None
     
     def as_formatted_text(self) -> str:
-            return f"Task: {self.task.as_formatted_text()}\nIterations: {self.iterations}\nFinal Plan: {self.final_plan}\nFinal Output: {self.final_output}\nFinal Review: {self.final_review}"
+        return (
+            f"Task:\n{self.task.as_formatted_text()}\n\n"
+            f"Final Review:\n{self.final_review}\n\n"
+            f"Iterations: {self.iterations}\n\n"
+            f"Final Plan:\n{self.final_plan}\n\n"
+            f"Final Output:\n{self.final_output}"
+        )
 
+class AgentRevisionTask(BaseModel):
+    task: str
+    reason: str
+
+class AgentOutputRevision(BaseModel):
+    revision_tasks: List[AgentRevisionTask]
+    revised_output: str
+
+    def as_formatted_text(self) -> str:
+        formatted_text = "Output Revision:\n"
+        for i, task in enumerate(self.revision_tasks, 1):
+            formatted_text += f"\n{i}. Task: {task.task}\n"
+            formatted_text += f"   Reason: {task.reason}\n"
+        formatted_text += f"\nRevised Output:\n\n{self.revised_output}"
+        return formatted_text
 
 class ConversationHistoryEntry(BaseModel):
     agent_name: str
@@ -126,7 +174,7 @@ class ConversationHistoryEntry(BaseModel):
         else:
             formatted_content = self.content
 
-        return f"[{self.timestamp}] {self.agent_name} - {self.heading}\nModel: {self.model}\nContent:\n{formatted_content}"
+        return f"[{self.timestamp}] {self.agent_name} - {self.heading}\n\nModel: {self.model}\n\nContent:\n{formatted_content}"
 
 
 class ConversationHistoryEntryList(BaseModel):
@@ -151,7 +199,7 @@ class ConversationHistoryEntryList(BaseModel):
                 f"[{entry.timestamp}] {entry.agent_name} - {entry.heading}\n"
                 f"Model: {entry.model}\n"
                 f"Content: {entry.content}\n"
-                f"{'-' * 40}\n"
+                f"{'-' * 40}"
             )
             formatted_entries.append(formatted_entry)
         
@@ -261,7 +309,7 @@ class LLMAgent:
     def print_latest_entry(self, entry):
         print(f"\n{'=' * 50}", file=sys.stderr)
         print(entry.as_formatted_text(), file=sys.stderr)
-        print(f"{'=' * 50}\n", file=sys.stderr)
+        print(f"{'=' * 50}", file=sys.stderr)  # Removed the leading newline
         sys.stderr.flush()
 
 
@@ -296,27 +344,41 @@ class LLMAgent:
         Takes each step of the plan, reads the tool used,
         routes to the appropriate tool for that step
         """
-        results = []
+        results = PlanStepResultList(plan_steps=[])
+        accumulated_context = ""
         for step in plan.steps:
-            if not self.tools:
-                self.logger.warning(f"No tools available to execute step: {step}")
-                continue
+            # Add accumulated context to the step prompt
+            step_prompt = f"{accumulated_context}\n\nCurrent step: {step.prompt}"
             
-            tool_name = step.tool_name
-            if tool_name is not None and tool_name not in self.tools:
-                self.logger.warning(f"Tool '{tool_name}' not found for step: {step}")
-                continue
+            if step.tool_name is None:
+                # Handle steps without a tool
+                result_json = self.model_interface.chat_completion_call(
+                    system_prompt="You are a helpful assistant executing a task. Provide the result and a brief explanation.",
+                    user_prompt=f"{step_prompt}\n\nRespond in ToolResponse format with 'output' and 'explanation' fields.",
+                    response_format=ToolResponse
+                )
+                output = ToolResponse(**json.loads(result_json))
+            else:
+                if step.tool_name not in self.tools:
+                    self.logger.warning(f"Tool '{step.tool_name}' not found for step: {step}")
+                    continue
+                
+                try:
+                    # Pass the updated prompt with accumulated context to the tool
+                    step.prompt = step_prompt
+                    output = self.tools[step.tool_name].use(step)
+                except Exception as e:
+                    self.logger.error(f"Error executing step '{step}' with tool '{step.tool_name}': {str(e)}")
+                    continue
             
-            try:
-                if tool_name is None:
-                    result = f"No tool used for step: {step.step}"
-                else:
-                    result = self.tools[tool_name].use(step)
-                results.append(result)
-                self.logger.info(f"Executed step: {step}")
-                self.logger.debug(f"Step result: {result}")
-            except Exception as e:
-                self.logger.error(f"Error executing step '{step}' with tool '{tool_name}': {str(e)}")
+            step_result = PlanStepResult(plan_step=step, result=output)
+            results.plan_steps.append(step_result)
+            
+            # Update accumulated context with the result of this step
+            accumulated_context += f"\nStep {len(results.plan_steps)} result: {output.output}"
+            
+            self.logger.info(f"Executed step: {step}")
+            self.logger.debug(f"Step result: {output}")
         
         return results
 
@@ -396,17 +458,17 @@ class LLMAgent:
         Please revise the output based on the feedback provided. Ensure the revised output addresses the issues raised in the feedback and better fulfills the original task.
         """
         
-        revised_output = self.model_interface.chat_completion_call(
+        revised_output_json = self.model_interface.chat_completion_call(
             system_prompt=self.system_prompts.get("revise_output")(output),
-            user_prompt=revision_prompt
+            user_prompt=revision_prompt,
+            response_format=AgentOutputRevision,
         )
         
-        return revised_output
+        return AgentOutputRevision(**json.loads(revised_output_json))
 
 
     @add_to_conversation_history
-    def run(self):
-        max_iterations = 3
+    def run(self, max_iterations):
         iteration = 0
         
         plan = self.create_plan()
@@ -438,7 +500,8 @@ class LLMAgent:
                         plan = self.revise_plan(plan, review_result.recommendation)
                         output = None  # Reset output to force re-execution of the plan
                     elif review_result.revision_location == "output":
-                        output = self.revise_output(output, review_result.recommendation)
+                        revision_result = self.revise_output(output, review_result.recommendation)
+                        output = revision_result.revised_output
                     else:
                         self.logger.warning(f"Unknown revision location: {review_result.revision_location}")
                 else:
@@ -446,15 +509,25 @@ class LLMAgent:
                     final_result = output
                     final_review = f"Max iterations reached without success:\n\n{review_result.recommendation}"
         
+        # Extract the final result from the output
+        final_output = self.extract_final_output(final_result)
+        
         return AgentProcessOutput(
             task=self.task,
             iterations=iteration,
             final_plan=plan.as_formatted_text(),
-            final_output=final_result,
+            final_output=final_output,
             final_review=final_review
         )
-            
-            
+
+    def extract_final_output(self, output):
+        if isinstance(output, PlanStepResultList) and output.plan_steps:
+            last_step = output.plan_steps[-1]
+            return str(last_step.result.output)
+        elif isinstance(output, str):
+            return output
+        return "No output generated"
+
 
 class O1Agent:
     def __init__(self):
@@ -475,12 +548,16 @@ if __name__ == "__main__":
     from literature_reviewer.components.tool import BaseTool
 
     agent_task = AgentTask(
-        action="Create a poem backed by 3 peer-reviewed references",
-        desired_result="A poem backed by 3 peer-reviewed references",
+        action="Create a poem backed by concepts discussed by famous scientists, mention their scholarly work, but it's not necessary to cite or get exact works. First, gather ideas, second, find the key themes, third, write the poem",
+        desired_result="A poem backed by concepts discussed by famous scientists",
     )
+    # agent_task = AgentTask(
+    #     action="Create a poem backed by concepts discussed by famous scientists, mention their scholarly work, get one or two exact citations to mention in-text. First, gather ideas, second, find the key themes, third, write the poem",
+    #     desired_result="A poem backed by concepts discussed by famous scientists",
+    # )
     model_interface = ModelInterface(
         prompt_framework=PromptFramework.OAI_API,
-        model=Model("gpt-4o-mini","OpenAI"),
+        model=Model("gpt-4o","OpenAI"),
     )
     
     # Example tools
@@ -502,11 +579,13 @@ if __name__ == "__main__":
 
         def use(self, step: AgentPlanStep) -> str:
             system_prompt = "You are a helpful academic search assistant."
-            user_prompt = f"Please search for relevant academic papers based on the following query: {step.prompt}"
-            return self.model_interface.chat_completion_call(
+            user_prompt = f"Please search for relevant academic papers based on the following query: {step.prompt}. Output the papers to output and any required explanation to explanation"
+            output = self.model_interface.chat_completion_call(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
+                response_format=ToolResponse,
             )
+            return ToolResponse(**json.loads(output))
 
     class WriteTool(BaseTool):
         """
@@ -525,13 +604,15 @@ if __name__ == "__main__":
                 model_interface=model_interface
             )
 
-        def use(self, step: AgentPlanStep) -> str:
+        def use(self, step: AgentPlanStep) -> ToolResponse:
             system_prompt = "You are a creative poetry writer."
-            user_prompt = f"Please write a poem based on the following prompt: {step.prompt}. Use the references provided, but only output the poem itself as a single string."
-            return self.model_interface.chat_completion_call(
+            user_prompt = f"Please write a poem based on the following prompt: {step.prompt}. Use the references provided, but only output the poem itself as a single string in the output field, and if there are any citations or explanations necessary, fill those in the explanations field."
+            output = self.model_interface.chat_completion_call(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
+                response_format=ToolResponse,
             )
+            return ToolResponse(**json.loads(output))
 
 
     tools = {
@@ -557,5 +638,5 @@ if __name__ == "__main__":
         max_plan_steps=10
     )
     
-    agent.run()
+    agent.run(max_iterations=10)
     

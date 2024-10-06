@@ -5,7 +5,12 @@ All tools must adhere to this interface
 from abc import ABC, abstractmethod
 from literature_reviewer.components.agents.model_call import ModelInterface
 from typing import Any
+from pydantic import BaseModel
 from pydantic_core import CoreSchema, core_schema
+
+class ToolResponse(BaseModel):
+    output: str
+    explanation: str
 
 class BaseTool(ABC):
     def __init__(
@@ -19,7 +24,7 @@ class BaseTool(ABC):
         self.model_interface = model_interface
     
     @abstractmethod
-    def use(self, step: Any) -> str:
+    def use(self, step: Any) -> ToolResponse:
         pass
 
     @classmethod

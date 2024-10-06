@@ -166,5 +166,18 @@ def general_agent_output_revision_sys_prompt(original_output) -> str:
     Original output to revise:
     {original_output}
 
-    Please provide a revised version of the output that thoroughly addresses the feedback given in the review.
+    Please provide a revised version of the output that thoroughly addresses the feedback given in the review. Format your response as an AgentOutputRevision with the following structure:
+
+    1. revision_tasks: A list of AgentRevisionTask objects, each containing:
+       - task: A specific revision task performed
+       - reason: The reason for this revision
+
+    2. revised_output: The final revised text, containing ONLY the output product itself.
+
+    IMPORTANT: 
+    - Place ONLY the final revised text in the revised_output field.
+    - Do NOT include citations, reasons, or explanations in the revised_output field.
+    - All additional information, such as changes made, reasons for revisions, and citations, should be included in the revision_tasks list.
+
+    Ensure your response can be parsed into the AgentOutputRevision format.
     """
