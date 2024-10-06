@@ -23,7 +23,7 @@ class ModelInterface:
     def _import_framework_module(self):
         module_name = self.prompt_framework.value.lower()
         return import_module(
-            f"literature_reviewer.components.model_interaction.frameworks.{module_name}"
+            f"literature_reviewer.components.agents.frameworks.{module_name}"
         )
     
     @staticmethod
@@ -40,7 +40,7 @@ class ModelInterface:
         self,
         system_prompt,
         user_prompt,
-        response_format,
+        response_format=None,
         assistant_prompt=None,
         image_string=None,
         tools=None,
@@ -58,7 +58,7 @@ class ModelInterface:
                 system=cleaned_system_prompt,
                 user=cleaned_user_prompt,
                 response_format=response_format,
-                assistant_prompt=assistant_prompt,
+                assistant=assistant_prompt,
                 base64_image_string=image_string,
                 tools=tools,
                 tool_choice=tool_choice,
