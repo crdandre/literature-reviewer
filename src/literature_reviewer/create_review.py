@@ -6,6 +6,7 @@ Handles doing tasks, moving around the flow building blocks.
 May it generate useful ideas.
 """
 import argparse, datetime, logging, os
+import controlflow as cf
 from dotenv import load_dotenv
 from literature_reviewer.tasks import (
     analyze_clusters,
@@ -15,6 +16,7 @@ from literature_reviewer.tasks import (
 )
 from literature_reviewer.components.model_interaction.frameworks_and_models import PromptFramework
 
+@cf.flow
 def create_literature_review(
     title: str = "YOU FORGOT TO SPECIFY A TITLE, SILLY",
     model_name: str = "gpt-4o-2024-08-06", #gpt-4o-2024-08-06 or gpt-4o-mini or any openrouter model

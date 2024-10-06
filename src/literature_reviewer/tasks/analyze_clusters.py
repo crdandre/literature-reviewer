@@ -35,8 +35,8 @@ from literature_reviewer.components.prompts.cluster_analysis import (
     generate_single_cluster_theme_summary_sys_prompt,
     generate_multi_cluster_theme_summary_sys_prompt
 )
-from literature_reviewer.components.model_interaction.model_call import ModelInterface
-from literature_reviewer.components.model_interaction.frameworks_and_models import (
+from literature_reviewer.components.agents.model_call import ModelInterface
+from literature_reviewer.components.agents.frameworks_and_models import (
     PromptFramework,
     Model,
 )

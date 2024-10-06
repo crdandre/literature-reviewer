@@ -5,14 +5,14 @@ all that can be found via Semantic Scholar, ideally.
 
 Then, embed that. At this point the database is ready for searching.
 """
-import json
+import json, logging
 from literature_reviewer.components.preprocessing.langchain_extract_from_pdf import LangchainPDFTextExtractor
 from literature_reviewer.components.database_operations.chroma_operations import (
     add_to_chromadb,
     query_chromadb,
 )
-from literature_reviewer.components.model_interaction.model_call import ModelInterface
-from literature_reviewer.components.model_interaction.frameworks_and_models import (
+from literature_reviewer.components.agents.model_call import ModelInterface
+from literature_reviewer.components.agents.frameworks_and_models import (
     PromptFramework,
     Model,
 )
@@ -85,10 +85,7 @@ class ResearchQueryGenerator:
         )
 
         
-        # # Pretty print the semantic_scholar_queries in JSON format
-        # print("SEMANTIC SCHOLAR QUERY LIST (Pretty JSON):")
-        # print(json.dumps(json.loads(semantic_scholar_queries), indent=4))
-        print("S2 Query Objects Generated")
+        logging.info("S2 Query Objects Generated")
         return semantic_scholar_queries
     
     def embed_initial_corpus_get_queries(self):
@@ -101,6 +98,8 @@ class ResearchQueryGenerator:
         # Return only the parsed list of queries
         return queries
 
+
+# Example Usage
 if __name__ == "__main__":
     with open("/home/christian/literature-reviewer/user_inputs/goal_prompt.txt", "r") as file:
         user_goals_text = file.read()

@@ -4,7 +4,7 @@ frameworks and providers somewhat doable as long as more don't keep
 popping up quicker than I can keep track of
 """
 from importlib import import_module
-from literature_reviewer.components.model_interaction.frameworks_and_models import ( #noqa
+from literature_reviewer.components.agents.frameworks_and_models import ( #noqa
     PromptFramework, Model
 )
 from typing import Union, List
@@ -36,39 +36,32 @@ class ModelInterface:
         
         return cleaned_system_prompt, cleaned_user_prompt
 
-    def entry_chat_call(
+    def chat_completion_call(
         self,
         system_prompt,
         user_prompt,
         response_format,
-        image_string=None
+        assistant_prompt=None,
+        image_string=None,
+        tools=None,
+        tool_choice="required"
     ) -> str:
         """
         Calls an LLM API using the specified prompt framework and provider.
-        
-        entry_call is currently a system,user call. In the future,
-        it may be useful to have this be the entry-point where
-        a decision about the optimal prompt type can be made.
-        that could either be done here or in the framework files
-        such as ell.py
         """
         cleaned_system_prompt, cleaned_user_prompt = self._clean_prompts(
             system_prompt, user_prompt
         )
-        if self.prompt_framework == PromptFramework.ELL:
-            return self.framework_module.entry_chat_call(
-                model=self.model.model_name,
-                system=cleaned_system_prompt,
-                user=cleaned_user_prompt,
-                response_format=response_format
-            )
         if self.prompt_framework == PromptFramework.OAI_API:
-            return self.framework_module.entry_chat_call(
+            return self.framework_module.chat_completion_call(
                 model_choice=self.model,
                 system=cleaned_system_prompt,
                 user=cleaned_user_prompt,
                 response_format=response_format,
+                assistant_prompt=assistant_prompt,
                 base64_image_string=image_string,
+                tools=tools,
+                tool_choice=tool_choice,
             ) 
         else:
             raise NotImplementedError(f"Framework {self.prompt_framework} not implemented yet")

@@ -5,8 +5,8 @@ from pdf2image.exceptions import (
     PDFPageCountError,
     PDFSyntaxError
 )
-from literature_reviewer.components.model_interaction.model_call import ModelInterface
-from literature_reviewer.components.model_interaction.frameworks_and_models import PromptFramework, Model
+from literature_reviewer.components.agents.model_call import ModelInterface
+from literature_reviewer.components.agents.frameworks_and_models import PromptFramework, Model
 from literature_reviewer.components.input_output_models.response_formats import AbstractExtractionResponse
 from literature_reviewer.components.prompts.literature_search_query import generate_abstract_extraction_from_image_sys_prompt
 

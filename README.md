@@ -34,6 +34,9 @@ Temporarily, I'm using langchain/chroma db because YT shows this repeatedly and 
 ## Issues
 - Dependency conflict with ell-ai, langchain, and numpy - the first two have no overlapping versions of the 3rd. Starting with langchain for now...
 
+## Orchestration and Agent Creation
+- Using [`controlflow`](https://github.com/PrefectHQ/ControlFlow)
+
 ## Adjacent Reference Material
 [Texas A&M LibGuide on AI-Based Literature Reviews](https://tamu.libguides.com/c.php?g=1289555)
 [RAG/Agents, Good Article](https://lilianweng.github.io/posts/2023-06-23-agent/)

@@ -20,8 +20,8 @@ from langchain.schema import Document
 from literature_reviewer.components.data_ingestion.semantic_scholar import SemanticScholarInterface
 from literature_reviewer.components.preprocessing.langchain_extract_from_pdf import LangchainPDFTextExtractor
 from literature_reviewer.components.database_operations.chroma_operations import add_to_chromadb
-from literature_reviewer.components.model_interaction.model_call import ModelInterface
-from literature_reviewer.components.model_interaction.frameworks_and_models import Model
+from literature_reviewer.components.agents.model_call import ModelInterface
+from literature_reviewer.components.agents.frameworks_and_models import Model
 from literature_reviewer.components.prompts.literature_search_query import generate_s2_results_evaluation_system_prompt
 from literature_reviewer.components.input_output_models.response_formats import CorpusInclusionVerdict
 from literature_reviewer.components.preprocessing.image_based_abstract_extraction import extract_abstract_from_pdf
@@ -270,7 +270,7 @@ class CorpusGatherer:
 
 if __name__ == "__main__":
     # Example usage
-    from literature_reviewer.components.model_interaction.frameworks_and_models import PromptFramework
+    from literature_reviewer.components.agents.frameworks_and_models import PromptFramework
 
     from dotenv import load_dotenv
     load_dotenv(override=True)
