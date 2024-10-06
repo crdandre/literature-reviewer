@@ -20,12 +20,19 @@ Additions:
 """
 
 
-import datetime, json, logging, sys
+import datetime, json, logging, shutil, sys
 from pydantic import BaseModel
 from typing import List, Dict
 from literature_reviewer.components.agents.model_call import ModelInterface
 from literature_reviewer.components.tool import BaseTool, ToolResponse
 from datetime import datetime, timezone
+from rich.console import Console, Group
+from rich.panel import Panel
+from rich.text import Text
+from rich.box import ROUNDED
+from rich.table import Table
+from rich.markdown import Markdown
+from rich.syntax import Syntax
 
 
 """
@@ -39,32 +46,40 @@ class AgentPlanStep(BaseModel):
     prompt: str
     tool_name: str | None = None
 
+    def as_rich(self) -> Panel:
+        content = Text()
+        content.append(f"Step: ", style="bold")
+        content.append(self.step, style="cyan")
+        content.append("\nReason: ", style="bold")
+        content.append(self.reason, style="green")
+        content.append("\nPrompt: ", style="bold")
+        content.append(self.prompt, style="yellow")
+        content.append("\nTool: ", style="bold")
+        content.append(self.tool_name or "None", style="magenta")
+        return Panel(content, title=f"Plan Step", border_style="blue")
+
 
 class AgentPlan(BaseModel):
     steps: List[AgentPlanStep]
     
-    def as_xml_string(self) -> str:
-        steps_xml = "\n".join([
-            f"  <step>\n"
-            f"    <description>{step.step}</description>\n"
-            f"    <reason>{step.reason}</reason>\n"
-            f"    <prompt>{step.prompt}</prompt>\n"
-            f"    <tool>\n"
-            f"      <name>{step.tool.name if step.tool else 'None'}</name>\n"
-            f"      <description>{step.tool.description if step.tool else 'None'}</description>\n"
-            f"    </tool>\n"
-            f"  </step>"
-            for step in self.steps
-        ])
-        return f"<agent_plan>\n{steps_xml}\n</agent_plan>"
-    
+    def as_rich(self) -> Panel:
+        table = Table(show_header=True, header_style="bold magenta")
+        table.add_column("Step", style="cyan", no_wrap=True)
+        table.add_column("Description", style="green")
+        table.add_column("Tool", style="yellow")
+        
+        for i, step in enumerate(self.steps, 1):
+            table.add_row(str(i), step.step, step.tool_name or "None")
+        
+        return Panel(table, title="Agent Plan", border_style="blue")
+
     def as_formatted_text(self) -> str:
         formatted_text = "Agent Plan:\n"
         for i, step in enumerate(self.steps, 1):
-            formatted_text += f"\n{i}. {step.step}\n"
-            formatted_text += f"   -> Reason: {step.reason}\n"
-            formatted_text += f"   -> Prompt: {step.prompt}\n"
-            formatted_text += f"   -> Tool Name: {step.tool_name if step.tool_name else 'None'}"
+            formatted_text += f"\nStep {i}:\n"
+            formatted_text += f"  Action: {step.step}\n"
+            formatted_text += f"  Reason: {step.reason}\n"
+            formatted_text += f"  Tool: {step.tool_name or 'None'}\n"
         return formatted_text
 
 
@@ -72,20 +87,25 @@ class PlanStepResult(BaseModel):
     plan_step: AgentPlanStep
     result: ToolResponse
 
-    
+    def as_rich(self) -> Panel:
+        content = Text()
+        content.append("Plan Step:\n", style="bold")
+        content.append(self.plan_step.step, style="cyan")
+        content.append("\n\nTool: ", style="bold")
+        content.append(self.plan_step.tool_name or "None", style="magenta")
+        content.append("\n\nResult:\n", style="bold")
+        content.append(f"Output: {self.result.output.strip()}", style="green")
+        if self.result.explanation:
+            content.append(f"\nExplanation: {self.result.explanation.strip()}", style="yellow")
+        return Panel(content, title="Plan Step Result", border_style="cyan")
+
+
 class PlanStepResultList(BaseModel):
     plan_steps: List[PlanStepResult]
     
-    def as_formatted_text(self) -> str:
-        formatted_text = "Plan Step Results:\n"
-        for i, step_result in enumerate(self.plan_steps, 1):
-            formatted_text += f"\n{i}. Step: {step_result.plan_step.step}\n\n"
-            formatted_text += f"   Tool: {step_result.plan_step.tool_name if step_result.plan_step.tool_name else 'None'}\n\n"
-            formatted_text += f"   Result:\n"
-            formatted_text += f"   Output: {step_result.result.output.strip()}\n\n"
-            if step_result.result.explanation:
-                formatted_text += f"   Explanation: {step_result.result.explanation.strip()}"
-        return formatted_text
+    def as_rich(self) -> Panel:
+        content = Group(*[step_result.as_rich() for step_result in self.plan_steps])
+        return Panel(content, title="Plan Step Results", border_style="green")
 
 
 class AgentReviewVerdict(BaseModel):
@@ -93,20 +113,30 @@ class AgentReviewVerdict(BaseModel):
     recommendation: str | None
     revision_location: str | None
     
-    def as_formatted_text(self) -> str:
-        formatted_text = f"Review Verdict:\n\n"
-        formatted_text += f"Verdict: {'Passed' if self.verdict else 'Failed'}\n\n"
+    def as_rich(self) -> Panel:
+        content = Text()
+        content.append("Verdict: ", style="bold")
+        content.append("✅ Passed" if self.verdict else "❌ Failed", style="green" if self.verdict else "red")
         if self.recommendation:
-            formatted_text += f"Recommendation: {self.recommendation}\n\n"
+            content.append("\n\nRecommendation:\n", style="bold")
+            content.append(self.recommendation, style="italic yellow")
         if self.revision_location:
-            formatted_text += f"Revision Location: {self.revision_location}"
-        return formatted_text
-        
+            content.append("\n\nRevision Location:\n", style="bold")
+            content.append(self.revision_location, style="blue underline")
+        return Panel(content, title="Review Verdict", border_style="magenta")
 
 
 class AgentTask(BaseModel):
     action: str
     desired_result: str
+    
+    def as_rich(self) -> Panel:
+        content = Text()
+        content.append("Action:\n", style="bold")
+        content.append(self.action, style="cyan")
+        content.append("\n\nDesired Result:\n", style="bold")
+        content.append(self.desired_result, style="green")
+        return Panel(content, title="Agent Task", border_style="yellow")
     
     def as_xml_string(self) -> str:
         return (
@@ -116,9 +146,6 @@ class AgentTask(BaseModel):
             f"</agent_task>\n"
         )
 
-    def as_formatted_text(self) -> str:
-        return f"Action: {self.action}\n\nDesired Result: {self.desired_result}"
-
 
 class AgentProcessOutput(BaseModel):
     task: AgentTask
@@ -127,30 +154,44 @@ class AgentProcessOutput(BaseModel):
     final_output: str
     final_review: str | None
     
-    def as_formatted_text(self) -> str:
-        return (
-            f"Task:\n{self.task.as_formatted_text()}\n\n"
-            f"Final Review:\n{self.final_review}\n\n"
-            f"Iterations: {self.iterations}\n\n"
-            f"Final Plan:\n{self.final_plan}\n\n"
-            f"Final Output:\n{self.final_output}"
-        )
+    def as_rich(self) -> Panel:
+        content = [
+            self.task.as_rich(),
+            Text(f"\nIterations: ", style="bold") + Text(str(self.iterations), style="cyan"),
+            Text("\nFinal Plan:\n", style="bold") + Text(self.final_plan, style="green"),
+            Text("\nFinal Output:\n", style="bold") + Text(self.final_output, style="yellow"),
+        ]
+        if self.final_review:
+            content.append(Text("\nFinal Review:\n", style="bold") + Text(self.final_review, style="magenta"))
+        return Panel(Group(*content), title="Agent Process Output", border_style="blue")
+
 
 class AgentRevisionTask(BaseModel):
     task: str
     reason: str
 
+    def as_rich(self) -> Panel:
+        content = Text()
+        content.append("Task:\n", style="bold")
+        content.append(self.task, style="cyan")
+        content.append("\n\nReason:\n", style="bold")
+        content.append(self.reason, style="green")
+        return Panel(content, title="Revision Task", border_style="yellow")
+
+
 class AgentOutputRevision(BaseModel):
     revision_tasks: List[AgentRevisionTask]
     revised_output: str
 
-    def as_formatted_text(self) -> str:
-        formatted_text = "Output Revision:\n"
+    def as_rich(self) -> Panel:
+        content = Text()
         for i, task in enumerate(self.revision_tasks, 1):
-            formatted_text += f"\n{i}. Task: {task.task}\n"
-            formatted_text += f"   Reason: {task.reason}\n"
-        formatted_text += f"\nRevised Output:\n\n{self.revised_output}"
-        return formatted_text
+            content.append(f"\n{i}. ", style="bold")
+            content.append(task.as_rich())
+        content.append("\n\nRevised Output:\n", style="bold")
+        content.append(self.revised_output, style="cyan")
+        return Panel(content, title="Output Revision", border_style="green")
+
 
 class ConversationHistoryEntry(BaseModel):
     agent_name: str
@@ -158,52 +199,37 @@ class ConversationHistoryEntry(BaseModel):
     timestamp: str
     model: str
     content: str
-    content_structure: str  # Name of the Pydantic model
+    content_structure: str
 
-    def as_formatted_text(self) -> str:
+    def as_rich(self) -> Panel:
+        details = Text()
+        details.append(self.heading, style="bold yellow")
+        details.append(f"\nTimestamp: ", style="dim")
+        details.append(self.timestamp, style="cyan")
+        details.append(f"\nModel: ", style="dim")
+        details.append(self.model, style="magenta")
+        
+        details_panel = Panel(details, title="Entry Details", border_style="yellow", padding=(1, 1))
+        
         if self.content_structure:
             try:
-                # Get the class from the current module
                 model_class = globals()[self.content_structure]
-                # Parse the content string back into the Pydantic model
                 parsed_content = model_class.parse_raw(self.content)
-                # Call the as_formatted_text method of the parsed content
-                formatted_content = parsed_content.as_formatted_text()
+                content_panel = parsed_content.as_rich()
             except (KeyError, ValueError) as e:
-                formatted_content = f"Error formatting content: {str(e)}"
+                content_panel = Panel(f"Error formatting content: {str(e)}", title="Content", border_style="red", padding=(1, 1))
         else:
-            formatted_content = self.content
-
-        return f"[{self.timestamp}] {self.agent_name} - {self.heading}\n\nModel: {self.model}\n\nContent:\n{formatted_content}"
+            content_panel = Panel(Markdown(self.content), title="Content", border_style="green", padding=(1, 1))
+        
+        return Panel(Group(details_panel, content_panel), title=f"{self.agent_name} - {self.heading}", border_style="blue", padding=(1, 1))
 
 
 class ConversationHistoryEntryList(BaseModel):
     entries: List[ConversationHistoryEntry]
     
-    def as_xml_string(self) -> str:
-        entries_xml = "\n".join([
-            f"  <entry>\n"
-            f"    <heading>{entry.heading}</heading>\n"
-            f"    <timestamp>{entry.timestamp}</timestamp>\n"
-            f"    <model>{entry.model}</model>\n"
-            f"    <content>{entry.content}</content>\n"
-            f"  </entry>"
-            for entry in self.entries
-        ])
-        return f"<conversation_history>\n{entries_xml}\n</conversation_history>"
-    
-    def as_formatted_text(self) -> str:
-        formatted_entries = []
-        for entry in self.entries:
-            formatted_entry = (
-                f"[{entry.timestamp}] {entry.agent_name} - {entry.heading}\n"
-                f"Model: {entry.model}\n"
-                f"Content: {entry.content}\n"
-                f"{'-' * 40}"
-            )
-            formatted_entries.append(formatted_entry)
-        
-        return "\n".join(formatted_entries).strip()
+    def as_rich(self) -> Panel:
+        content = Group(*[entry.as_rich() for entry in self.entries])
+        return Panel(content, title="Conversation History", border_style="cyan")
 
 
 """
@@ -306,11 +332,90 @@ class LLMAgent:
         return wrapper
 
 
+    def print_ascii_art(self):
+        console = Console(file=sys.stderr)
+
+        def create_ascii_art(text):
+            width = len(text) + 2  # Reduced padding
+            ascii_art = text
+            return ascii_art.strip()
+
+        # Create the inner ASCII art
+        inner_ascii = create_ascii_art(self.name)
+        
+        # Create a Text object with the ASCII art, styled in magenta
+        inner_text = Text(inner_ascii, style="bold magenta")
+
+        # Create the inner panel with rounded borders
+        inner_panel = Panel(
+            inner_text,
+            box=ROUNDED,
+            border_style="bold magenta",
+            expand=False,
+            padding=(0, 0)  # Minimal padding
+        )
+
+        # Create the outer panel with rounded borders
+        outer_panel = Panel(
+            inner_panel,
+            box=ROUNDED,
+            border_style="bold cyan",
+            expand=False,
+            padding=(0, 0)  # Minimal padding
+        )
+
+        # Print the nested panels
+        console.print(outer_panel)
+
     def print_latest_entry(self, entry):
-        print(f"\n{'=' * 50}", file=sys.stderr)
-        print(entry.as_formatted_text(), file=sys.stderr)
-        print(f"{'=' * 50}", file=sys.stderr)  # Removed the leading newline
-        sys.stderr.flush()
+        console = Console(file=sys.stderr)
+        
+        # Create the main panel content
+        main_content = []
+        
+        # Add the details panel with spacing
+        details = Text()
+        details.append(entry.heading, style="bold yellow")
+        details.append(f"\nTimestamp: ", style="dim")
+        details.append(entry.timestamp, style="cyan")
+        details.append(f"\nModel: ", style="dim")
+        details.append(entry.model, style="magenta")
+        
+        details_panel = Panel(details, title="Entry Details", border_style="yellow", padding=(1, 1))
+        main_content.append(details_panel)
+        
+        # Add the content panel with spacing, unless it's ASCII art
+        if entry.content_structure:
+            try:
+                model_class = globals()[entry.content_structure]
+                parsed_content = model_class.parse_raw(entry.content)
+                content_panel = parsed_content.as_rich()
+                
+                # Apply padding to the content panel if it's not ASCII art
+                if not isinstance(content_panel, (Panel, Text)) or "ASCII" not in str(content_panel):
+                    if isinstance(content_panel, Panel):
+                        content_panel.padding = (1, 1)
+                    else:
+                        content_panel = Panel(content_panel, padding=(1, 1), border_style="green")
+                
+                main_content.append(content_panel)
+            except (KeyError, ValueError) as e:
+                error_panel = Panel(f"Error formatting content: {str(e)}", title="Content", border_style="red", padding=(1, 1))
+                main_content.append(error_panel)
+        else:
+            content_panel = Panel(Markdown(entry.content), title="Content", border_style="green", padding=(1, 1))
+            main_content.append(content_panel)
+        
+        # Create the main panel with the content
+        main_panel = Panel(
+            Group(*main_content),
+            title=f"{entry.agent_name} - {entry.heading}",
+            border_style="blue",
+            padding=(1, 1)
+        )
+        
+        console.print(main_panel)
+        console.print()
 
 
     @add_to_conversation_history
@@ -350,8 +455,8 @@ class LLMAgent:
             # Add accumulated context to the step prompt
             step_prompt = f"{accumulated_context}\n\nCurrent step: {step.prompt}"
             
-            if step.tool_name is None:
-                # Handle steps without a tool
+            if step.tool_name is None or step.tool_name not in self.tools:
+                # Handle steps without a tool or with an unknown tool
                 result_json = self.model_interface.chat_completion_call(
                     system_prompt="You are a helpful assistant executing a task. Provide the result and a brief explanation.",
                     user_prompt=f"{step_prompt}\n\nRespond in ToolResponse format with 'output' and 'explanation' fields.",
@@ -359,10 +464,6 @@ class LLMAgent:
                 )
                 output = ToolResponse(**json.loads(result_json))
             else:
-                if step.tool_name not in self.tools:
-                    self.logger.warning(f"Tool '{step.tool_name}' not found for step: {step}")
-                    continue
-                
                 try:
                     # Pass the updated prompt with accumulated context to the tool
                     step.prompt = step_prompt
@@ -469,6 +570,8 @@ class LLMAgent:
 
     @add_to_conversation_history
     def run(self, max_iterations):
+        self.print_ascii_art()  # Print ASCII art at the beginning of the run
+        
         iteration = 0
         
         plan = self.create_plan()
@@ -509,8 +612,7 @@ class LLMAgent:
                     final_result = output
                     final_review = f"Max iterations reached without success:\n\n{review_result.recommendation}"
         
-        # Extract the final result from the output
-        final_output = self.extract_final_output(final_result)
+        final_output = self._extract_final_output(final_result)
         
         return AgentProcessOutput(
             task=self.task,
@@ -520,7 +622,7 @@ class LLMAgent:
             final_review=final_review
         )
 
-    def extract_final_output(self, output):
+    def _extract_final_output(self, output):
         if isinstance(output, PlanStepResultList) and output.plan_steps:
             last_step = output.plan_steps[-1]
             return str(last_step.result.output)
@@ -536,6 +638,10 @@ class O1Agent:
     
         
 if __name__ == "__main__":
+    import os
+    from dotenv import load_dotenv
+    load_dotenv()
+    
     from literature_reviewer.components.agents.frameworks_and_models import ( #noqa
         PromptFramework, Model
     )
@@ -557,7 +663,7 @@ if __name__ == "__main__":
     # )
     model_interface = ModelInterface(
         prompt_framework=PromptFramework.OAI_API,
-        model=Model("gpt-4o","OpenAI"),
+        model=Model("gpt-4o-mini","OpenAI"),
     )
     
     # Example tools
@@ -638,5 +744,12 @@ if __name__ == "__main__":
         max_plan_steps=10
     )
     
-    agent.run(max_iterations=10)
+    result = agent.run(max_iterations=10)
+        
+    # Print the final output in a labeled box
+    agent.print_ascii_art()
     
+    console = Console(file=sys.stderr)
+    output_text = Text(result.final_output)
+    output_panel = Panel(output_text, title="Final Output", border_style="bold cyan", expand=False)
+    console.print(output_panel)
