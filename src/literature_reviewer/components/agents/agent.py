@@ -184,12 +184,15 @@ class AgentOutputRevision(BaseModel):
     revised_output: str
 
     def as_rich(self) -> Panel:
-        content = Text()
+        content = Group()
         for i, task in enumerate(self.revision_tasks, 1):
-            content.append(f"\n{i}. ", style="bold")
-            content.append(task.as_rich())
-        content.append("\n\nRevised Output:\n", style="bold")
-        content.append(self.revised_output, style="cyan")
+            task_panel = task.as_rich()
+            content.renderables.append(Text(f"{i}. ", style="bold"))
+            content.renderables.append(task_panel)
+        
+        content.renderables.append(Text("\nRevised Output:\n", style="bold"))
+        content.renderables.append(Text(self.revised_output, style="cyan"))
+        
         return Panel(content, title="Output Revision", border_style="green")
 
 
@@ -654,8 +657,8 @@ if __name__ == "__main__":
     from literature_reviewer.components.tool import BaseTool
 
     agent_task = AgentTask(
-        action="Create a poem backed by concepts discussed by famous scientists, mention their scholarly work, but it's not necessary to cite or get exact works. First, gather ideas, second, find the key themes, third, write the poem",
-        desired_result="A poem backed by concepts discussed by famous scientists",
+        action="Create a short historical essay written like shakespeare. Find and use appropriate reference material, then write the essay using it",
+        desired_result="a short historical essay written like shakespeare",
     )
     # agent_task = AgentTask(
     #     action="Create a poem backed by concepts discussed by famous scientists, mention their scholarly work, get one or two exact citations to mention in-text. First, gather ideas, second, find the key themes, third, write the poem",
@@ -734,9 +737,9 @@ if __name__ == "__main__":
     }
     
     agent = LLMAgent(
-        name="Academic Poem Writer",
+        name="Squilliam Fancyson",
         task=agent_task,
-        prior_context="Chazal et al wrote about spine ligaments in 1984",
+        prior_context="",
         model_interface=model_interface,
         system_prompts=system_prompts,
         tools=tools,
