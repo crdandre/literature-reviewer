@@ -3,7 +3,7 @@ Base Class for Tools
 All tools must adhere to this interface
 """
 from abc import ABC, abstractmethod
-from literature_reviewer.components.agents.model_call import ModelInterface
+from literature_reviewer.agents.model_call import ModelInterface
 from typing import Any
 from pydantic import BaseModel
 from pydantic_core import CoreSchema, core_schema

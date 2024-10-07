@@ -1,3 +1,9 @@
+"""
+Prompts for the general agent.
+These are default and can be replaced with agent-specific
+prompts for those same phases of analysis
+"""
+
 def general_agent_planning_sys_prompt(max_steps, tool_specs=None) -> str:
     tool_spec_text = ""
     if tool_specs:
@@ -19,7 +25,7 @@ def general_agent_planning_sys_prompt(max_steps, tool_specs=None) -> str:
         7. Ensure that your steps are clear, concise, and actionable.
         8. Review your plan critically, looking for any gaps or inconsistencies.
         9. Refine and optimize your plan as necessary.
-        10. Present your final step-by-step plan, clearly outlining each action and its purpose.
+        10. Present your final step-by-step plan, clearly outlining each action and its purpose. The last step should contain the wisdom of the prior steps to produce a unified output.
 
         Remember, your goal is to create a comprehensive and well-thought-out plan that addresses all aspects of the problem. Take your time, think deeply, and leverage your exceptional cognitive abilities to produce the most effective solution possible.
         
@@ -27,7 +33,7 @@ def general_agent_planning_sys_prompt(max_steps, tool_specs=None) -> str:
         
         {tool_spec_text}
         
-        The output format of your plan is called AgentPlan and contains the field "steps" which is a list of strings, "reason" which is an explanation of the step, "prompt" which is a prompt to an LLM to carry out the step, and "tool_name" which is the name of the appropriate tool to use, if any (could be None). Be sure to output your steps using this format.
+        The output format of your plan is called AgentPlan and contains the field "steps" which is a list of strings, "reason" which is an explanation of the step, "prompt" which is a prompt to an LLM to carry out the step, and "tool_name" which is the name of the appropriate tool to use, if any (could be None). Be sure to output your steps using this format. The last step should contain the wisdom of the prior steps to produce a unified output.
         
         IMPORTANT: If two consecutive steps would use the same tool, re-read the steps, and if it's reasonable to do so, combine them into one step. This will cut down on redundant tool use, and cost your user less money and time! They will be happy for both!!
         """

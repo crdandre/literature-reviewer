@@ -11,6 +11,7 @@ authors = [
     { name = "Christian D'Andrea", email = "crdandre@gmail.com" },
 ]
 dependencies = [
+    "ascii_magic ~= 2.3.0",
     "backoff ~= 2.2.1",
     # "controlflow ~= 0.10.0",
     # "crewai ~= 0.67.1",
