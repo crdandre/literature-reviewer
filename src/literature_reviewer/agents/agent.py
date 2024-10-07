@@ -387,11 +387,6 @@ class LLMAgent:
         elif isinstance(output, str):
             return output
         return "No output generated"
-
-
-class O1Agent:
-    def __init__(self):
-        pass
     
     
         
