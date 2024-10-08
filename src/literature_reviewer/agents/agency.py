@@ -149,36 +149,7 @@ if __name__ == "__main__":
         model=Model("gpt-4o-mini","OpenAI"),
     )
     
-    # Example tools
-    
-
-    class PlanningTool(BaseTool):
-        """
-        A tool for creating detailed plans based on given tasks or objectives.
-        This tool utilizes advanced planning and reasoning capabilities to generate
-        structured plans with multiple steps. It can break down complex tasks into
-        manageable sub-tasks, consider dependencies, and suggest an optimal order
-        of execution. The PlanningTool is particularly useful for organizing research
-        processes, structuring essays, or planning multi-stage projects.
-        """
-        def __init__(self, model_interface: ModelInterface):
-            super().__init__(
-                name="PLANNER",
-                description="Creates detailed plans for complex tasks",
-                model_interface=model_interface
-            )
-
-        def use(self, step: AgentPlanStep) -> ToolResponse:
-            system_prompt = "You are an expert planner, capable of breaking down complex tasks into manageable steps."
-            user_prompt = f"Please create a detailed plan based on the following task: {step.prompt}. Output the plan steps to the output field and any explanations or rationale to the explanation field."
-            output = self.model_interface.chat_completion_call(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                response_format=ToolResponse,
-            )
-            return ToolResponse(**json.loads(output))
-    
-    
+    # Example tools   
     class SearchTool(BaseTool):
         """
         A tool for searching academic literature and retrieving relevant papers.
@@ -232,33 +203,34 @@ if __name__ == "__main__":
             )
             return ToolResponse(**json.loads(output))
 
-    steve_tools = {"planning": PlanningTool(model_interface=model_interface)}
+
+
 
     squilliam_tools = {
         "search": SearchTool(model_interface=model_interface),
         "write": WriteTool(model_interface=model_interface),
     }
-    pichael_tools = {}    
     system_prompts = {
         "planning": general_agent_planning_sys_prompt,
         "review": general_agent_output_review_sys_prompt,
         "revise_plan": general_agent_plan_revision_sys_prompt,
         "revise_output": general_agent_output_revision_sys_prompt,
-        "aggregation": "aggregate the agency outputs into one single unified response"
     }
-
-    
-    
     
     planner = Agent(
         name="Resource Allocator Steve",
         task=agency_task,
         prior_context="",
         model_interface=model_interface,
-        system_prompts=system_prompts,
-        tools=steve_tools,
+        system_prompts={
+            "planning": lambda *args, **kwargs: "devise the best plan for the two worker agents (working on same task in parallel) in 3 or less steps for each agent. they will both receive the same plan",
+            "review": lambda *args, **kwargs: "ensure your plan result is concise and captures the essence of the user task for the agency",
+            "revise_plan": lambda *args, **kwargs: "revise the steps that led to this plan",
+            "revise_output": lambda *args, **kwargs: "revise the output of the plan for correctness and clarity"
+        },
+        tools={}, #<--makes up tools if none??????? TODO: check this out
         verbose=True,
-        max_plan_steps=10,
+        max_plan_steps=3,
         ascii_art = ":)"
     )
       
@@ -270,7 +242,7 @@ if __name__ == "__main__":
         system_prompts=system_prompts,
         tools=squilliam_tools,
         verbose=True,
-        max_plan_steps=10,
+        max_plan_steps=3,
         ascii_art = challenged_ascii_art
     )
     
@@ -279,11 +251,16 @@ if __name__ == "__main__":
         task=agency_task,
         prior_context="",
         model_interface=model_interface,
-        system_prompts=system_prompts,
-        tools=pichael_tools,
+        system_prompts={
+            "planning": lambda *args, **kwargs: "plan the best way to aggregate the result of the prior agents' work in 3 or less steps",
+            "review": lambda *args, **kwargs: "ensure your aggregation result is concise and captures the result of the prior agents' work",
+            "revise_plan": lambda *args, **kwargs: "revise the steps that led to this aggregation",
+            "revise_output": lambda *args, **kwargs: "revise the output of the aggregation for correctness and clarity"
+        },
+        tools={},
         verbose=True,
-        max_plan_steps=10,
-        ascii_art = challenged_ascii_art
+        max_plan_steps=3,
+        ascii_art = "AAAAGGGGGGGRRREEEEEGGGAAATTTEEEE"
     )
     
     agency_agents = [planner, [worker, worker], aggregator]
@@ -295,5 +272,4 @@ if __name__ == "__main__":
     )
     
     print(agency.run())
-    
-    
+
