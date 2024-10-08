@@ -21,7 +21,34 @@ The weird/confusing bit is that each agent unto itself has reflection capabiliti
 I'm probably banking on sentience arising from hierarchical reflection, or wasting
 credits.
 
+
+One possible way to go about this is:
+Define agents sans what can be determined by a planning agent
+
+    self.model_interface = model_interface
+    self.name = name
+    self.task = task
+    self.prior_context = prior_context
+    self.system_prompts = system_prompts
+    self.tools = tools
+    self.verbose = verbose
+    self.conversation_history = ConversationHistoryEntryList(entries=[])
+    self.max_plan_steps = max_plan_steps
+    self.ascii_art = ascii_art
+    
+I.e. within an agency, the first agent divides the task up for the next agents,
+and the final agent wraps everything up for the output desired from the agency.
+
+Each agent between these is one of N choices based on the currently created
+catalogue of agents. This will soon be custom designed.
+
+It can be thought of as if each Agent is a specialized reflection engine, and the
+first resource allocation agent will decide on the agents and tools.
+
+However, the simplest way for now is to specify the agent structure and predetermine
+all agent params. Let's do this first.
 """
+import concurrent.futures
 from typing import List
 from literature_reviewer.agents.agent import Agent
 
@@ -29,12 +56,51 @@ class Agency:
     def __init__(
         self,
         name: str,
+        task: str,
         agents: Agent | List[Agent | List[Agent]],
     ):
         self.name = name
         self.agents = agents
         
         self._validate_agent_structure()
+        
+    
+    def run(self):
+        results = []
+        prior_context = ""
+        for item in self.agents:
+            if isinstance(item, Agent):
+                item.prior_context = prior_context
+                result = item.run(max_iterations=10)  # Assuming a default max_iterations
+                results.append(result)
+                prior_context += f"\n\nOutput from {item.name}:\n{result.final_output}"
+            elif isinstance(item, list):
+                parallel_results = []
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future_to_agent = {executor.submit(self._run_agent, agent, prior_context): agent for agent in item}
+                    for future in concurrent.futures.as_completed(future_to_agent):
+                        agent = future_to_agent[future]
+                        try:
+                            result = future.result()
+                            parallel_results.append(result)
+                            prior_context += f"\n\nOutput from {agent.name}:\n{result.final_output}"
+                        except Exception as exc:
+                            print(f'{agent.name} generated an exception: {exc}')
+                results.append(parallel_results)
+        
+        # Process and aggregate results as needed
+        final_output = self._aggregate_results(results)
+        return final_output
+
+    def _run_agent(self, agent, prior_context):
+        agent.prior_context = prior_context
+        return agent.run(max_iterations=10)
+
+    def _aggregate_results(self, results):
+        # For now, just join all outputs
+        aggregated_output = "\n\n".join([str(result) for result in results])
+        return aggregated_output
+    
         
     def _validate_agent_structure(self):
         if not isinstance(self.agents, list):
@@ -47,3 +113,187 @@ class Agency:
             if not isinstance(item, (Agent, list)) or (isinstance(item, list) and not all(isinstance(sub_item, Agent) for sub_item in item)):
                 raise ValueError(f"Item at index {i} must be either an Agent or a list of Agents.")
         
+
+if __name__ == "__main__":
+    import json
+    from literature_reviewer.agents.model_call import ModelInterface
+    from literature_reviewer.components.tool import BaseTool, ToolResponse
+
+    from literature_reviewer.agents.agent_pydantic_models import *
+    from dotenv import load_dotenv
+    load_dotenv()
+    from literature_reviewer.agents.frameworks_and_models import ( #noqa
+        PromptFramework, Model
+    )
+    from literature_reviewer.components.prompts.agent import (
+        general_agent_planning_sys_prompt,
+        general_agent_output_review_sys_prompt,
+        general_agent_plan_revision_sys_prompt,
+        general_agent_output_revision_sys_prompt,
+    )
+    from literature_reviewer.components.tool import BaseTool
+    from literature_reviewer.agents.personas.squilliam_fancyson import (
+        challenged_ascii_art
+    )
+    from literature_reviewer.agents.agent import Agent
+    
+    max_agent_iterations = 5
+    
+    agency_task = AgentTask(
+        action="build an understanding of the growth modulating treatments for adolescent idiopathic scoliosis and the compuational modeling effots made in this area. report back on future research directions. Find and use appropriate reference material, then write an essay using it",
+        desired_result="a short scientific overview of scoliosis treatment via growth modulation and associated compuational modeling techniques",
+    )
+
+    model_interface = ModelInterface(
+        prompt_framework=PromptFramework.OAI_API,
+        model=Model("gpt-4o-mini","OpenAI"),
+    )
+    
+    # Example tools
+    
+
+    class PlanningTool(BaseTool):
+        """
+        A tool for creating detailed plans based on given tasks or objectives.
+        This tool utilizes advanced planning and reasoning capabilities to generate
+        structured plans with multiple steps. It can break down complex tasks into
+        manageable sub-tasks, consider dependencies, and suggest an optimal order
+        of execution. The PlanningTool is particularly useful for organizing research
+        processes, structuring essays, or planning multi-stage projects.
+        """
+        def __init__(self, model_interface: ModelInterface):
+            super().__init__(
+                name="PLANNER",
+                description="Creates detailed plans for complex tasks",
+                model_interface=model_interface
+            )
+
+        def use(self, step: AgentPlanStep) -> ToolResponse:
+            system_prompt = "You are an expert planner, capable of breaking down complex tasks into manageable steps."
+            user_prompt = f"Please create a detailed plan based on the following task: {step.prompt}. Output the plan steps to the output field and any explanations or rationale to the explanation field."
+            output = self.model_interface.chat_completion_call(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                response_format=ToolResponse,
+            )
+            return ToolResponse(**json.loads(output))
+    
+    
+    class SearchTool(BaseTool):
+        """
+        A tool for searching academic literature and retrieving relevant papers.
+        This tool interfaces with academic databases to find peer-reviewed articles
+        based on given search queries. It's particularly useful for tasks that require
+        finding supporting evidence, background information, or specific research in
+        academic fields. The tool can handle complex search queries and return
+        summaries or citations of relevant papers.
+        """
+        def __init__(self, model_interface: ModelInterface):
+            super().__init__(
+                name="SEARCHER",
+                description="Searches for academic papers",
+                model_interface=model_interface
+            )
+
+        def use(self, step: AgentPlanStep) -> str:
+            system_prompt = "You are a helpful academic search assistant."
+            user_prompt = f"Please search for relevant academic papers based on the following query: {step.prompt}. Output the papers to output and any required explanation to explanation"
+            output = self.model_interface.chat_completion_call(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                response_format=ToolResponse,
+            )
+            return ToolResponse(**json.loads(output))
+
+    class WriteTool(BaseTool):
+        """
+        A tool for writing creative poetry based on given prompts or themes.
+        This tool utilizes natural language processing capabilities to generate
+        original poems in various styles and formats. It can incorporate specific
+        themes, emotions, or references provided in the prompt. The WriteTool is
+        particularly useful for tasks that require creative writing, especially
+        in poetic form, and can be used to create poems that reflect or incorporate
+        academic concepts or findings when combined with other research tools.
+        """
+        def __init__(self, model_interface: ModelInterface):
+            super().__init__(
+                name="WRITER",
+                description="Writes poetry",
+                model_interface=model_interface
+            )
+
+        def use(self, step: AgentPlanStep) -> ToolResponse:
+            system_prompt = "You are an author of many skills."
+            user_prompt = f"Please write the type of content requested by the user based on the following prompt: {step.prompt}. Use the references provided, but only output the content itself as a single string in the output field, and if there are any citations or explanations necessary, fill those in the explanations field."
+            output = self.model_interface.chat_completion_call(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                response_format=ToolResponse,
+            )
+            return ToolResponse(**json.loads(output))
+
+    steve_tools = {"planning": PlanningTool(model_interface=model_interface)}
+
+    squilliam_tools = {
+        "search": SearchTool(model_interface=model_interface),
+        "write": WriteTool(model_interface=model_interface),
+    }
+    pichael_tools = {}    
+    system_prompts = {
+        "planning": general_agent_planning_sys_prompt,
+        "review": general_agent_output_review_sys_prompt,
+        "revise_plan": general_agent_plan_revision_sys_prompt,
+        "revise_output": general_agent_output_revision_sys_prompt,
+        "aggregation": "aggregate the agency outputs into one single unified response"
+    }
+
+    
+    
+    
+    planner = Agent(
+        name="Resource Allocator Steve",
+        task=agency_task,
+        prior_context="",
+        model_interface=model_interface,
+        system_prompts=system_prompts,
+        tools=steve_tools,
+        verbose=True,
+        max_plan_steps=10,
+        ascii_art = ":)"
+    )
+      
+    worker = Agent(
+        name="Squilliam Fancyson",
+        task=agency_task,
+        prior_context="",
+        model_interface=model_interface,
+        system_prompts=system_prompts,
+        tools=squilliam_tools,
+        verbose=True,
+        max_plan_steps=10,
+        ascii_art = challenged_ascii_art
+    )
+    
+    aggregator = Agent(
+        name="Output Aggregator Pichael",
+        task=agency_task,
+        prior_context="",
+        model_interface=model_interface,
+        system_prompts=system_prompts,
+        tools=pichael_tools,
+        verbose=True,
+        max_plan_steps=10,
+        ascii_art = challenged_ascii_art
+    )
+    
+    agency_agents = [planner, [worker, worker], aggregator]
+    
+    agency = Agency(
+        name="The Squids",
+        agents=agency_agents,
+        task=agency_task
+    )
+    
+    print(agency.run())
+    
+    

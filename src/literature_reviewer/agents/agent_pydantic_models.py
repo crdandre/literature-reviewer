@@ -155,17 +155,19 @@ class AgentOutputRevision(BaseModel):
     revision_tasks: List[AgentRevisionTask]
     revised_output: str
 
-    def as_rich(self) -> Panel:
+    def as_rich(self) -> Group:
         content = Group()
+        content.renderables.append(Text("Output Revision", style="bold green"))
+        
         for i, task in enumerate(self.revision_tasks, 1):
             task_panel = task.as_rich()
-            content.renderables.append(Text(f"{i}. ", style="italic"))
+            content.renderables.append(Text(f"\n{i}. ", style="italic"))
             content.renderables.append(task_panel)
         
-        content.renderables.append(Text("\nRevised Output:\n", style="italic"))
+        content.renderables.append(Text("\nRevised Output:", style="italic bold"))
         content.renderables.append(Text(self.revised_output, style="cyan"))
         
-        return Panel(content, title="Output Revision", border_style="green")
+        return content
 
 
 class ConversationHistoryEntry(BaseModel):

@@ -8,7 +8,7 @@ execution, review, and if needed revision
 
 This simulates CoT-ish behavior. Alternatively calls to o1
 will have to be handled differently...
---> could have an Agent class which could beciome LLMAgent
+--> could have an Agent class which could beciome Agent
 or O1Agent depending on inputs
 
 
@@ -21,8 +21,6 @@ Constraints:
 1. [ ] Tools are responsible for their own output formats which 
        adhere to ToolResponse but can extend it
 """
-
-
 import datetime, json, logging, sys
 from pydantic import BaseModel
 from typing import Dict
@@ -36,12 +34,16 @@ from rich.markdown import Markdown
 
 from literature_reviewer.agents.agent_pydantic_models import *
 
+import time
+import threading
+from itertools import cycle
+
 """
 =======================================================
 Agents
 =======================================================
 """
-class LLMAgent:
+class Agent:
     """
     An intelligent agent capable of planning and executing tasks.
 
@@ -106,6 +108,36 @@ class LLMAgent:
             ))
             self.logger.debug(f"Added prior context: {self.prior_context}")
 
+        self.loading_event = threading.Event()
+        self.loading_thread = None
+
+    def start_loading_animation(self):
+        def animate():
+            for c in cycle(['|', '/', '-', '\\']):
+                if self.loading_event.is_set():
+                    break
+                sys.stdout.write('\rProcessing ' + c)
+                sys.stdout.flush()
+                time.sleep(0.1)
+            sys.stdout.write('\r' + ' ' * 20 + '\r')  # Clear the line
+
+        self.loading_thread = threading.Thread(target=animate)
+        self.loading_thread.start()
+
+    def stop_loading_animation(self):
+        self.loading_event.set()
+        if self.loading_thread:
+            self.loading_thread.join()
+
+    def run_with_loading(func):
+        def wrapper(self, *args, **kwargs):
+            if not self.loading_thread or not self.loading_thread.is_alive():
+                self.start_loading_animation()
+            try:
+                return func(self, *args, **kwargs)
+            finally:
+                pass  # Don't stop the animation here
+        return wrapper
 
     #decorator function for the others
     def add_to_conversation_history(func):
@@ -149,11 +181,9 @@ class LLMAgent:
 
     def print_latest_entry(self, entry):
         console = Console(file=sys.stderr)
-        
-        # Combine all entry details into the panel title
+        console.print()
         title = f"{entry.agent_name} - {entry.heading} | {entry.timestamp} | {entry.model}"
         
-        # Create the content
         if entry.content_structure:
             try:
                 model_class = globals()[entry.content_structure]
@@ -164,7 +194,6 @@ class LLMAgent:
         else:
             content = Markdown(entry.content)
         
-        # Create the main panel with the content
         main_panel = Panel(
             content,
             title=title,
@@ -176,6 +205,7 @@ class LLMAgent:
         console.print()
 
 
+    @run_with_loading
     @add_to_conversation_history
     def create_plan(self):
         """
@@ -198,6 +228,7 @@ class LLMAgent:
         return AgentPlan(**json.loads(plan_json))
 
         
+    @run_with_loading
     @add_to_conversation_history    
     def enact_plan(self, plan):
         """
@@ -242,10 +273,15 @@ class LLMAgent:
         return results
 
 
+    @run_with_loading
     @add_to_conversation_history
     def review_output(self, output):
         """
         Reviews the output of the plan execution.
+        
+        Given an agent-specific (or general) review system prompt,
+        The user prompt here can be generic and supply the material
+        to be reviewed.
         """
         self.logger.debug("Starting review process")
         
@@ -268,6 +304,7 @@ class LLMAgent:
         return AgentReviewVerdict(**json.loads(review_result))
 
 
+    @run_with_loading
     @add_to_conversation_history
     def revise_plan(self, plan, feedback):
         """
@@ -296,6 +333,7 @@ class LLMAgent:
         return AgentPlan(**json.loads(revised_plan_json))
     
     
+    @run_with_loading
     @add_to_conversation_history
     def revise_output(self, output, feedback):
         """
@@ -328,57 +366,58 @@ class LLMAgent:
 
     @add_to_conversation_history
     def run(self, max_iterations):
-        self.print_ascii_art(self.ascii_art)  # Print ASCII art at the beginning of the run
+        self.print_ascii_art(self.ascii_art)
         
         iteration = 0
-        
         plan = self.create_plan()
         output = None
         final_result = None
         final_review = None
         
-        while iteration < max_iterations:
-            iteration += 1
-            self.logger.info(f"Starting iteration {iteration}")
-            
-            if output is None:
-                output = self.enact_plan(plan)
-            
-            review_result = self.review_output(output)
-            
-            # Print the review verdict
-            self.logger.info(f"Review verdict: {'Passed' if review_result.verdict else 'Failed'}")
-            
-            if review_result.verdict:
-                self.logger.info("Task completed successfully")
-                final_result = output
-                final_review = f"{'Passed' if review_result.verdict else 'Failed'}"
-                break
-            else:
-                self.logger.info(f"Review failed. Recommendation: {review_result.recommendation}")
-                if iteration < max_iterations:
-                    if review_result.revision_location == "plan":
-                        plan = self.revise_plan(plan, review_result.recommendation)
-                        output = None  # Reset output to force re-execution of the plan
-                    elif review_result.revision_location == "output":
-                        revision_result = self.revise_output(output, review_result.recommendation)
-                        output = revision_result.revised_output
-                    else:
-                        self.logger.warning(f"Unknown revision location: {review_result.revision_location}")
-                else:
-                    self.logger.warning("Max iterations reached without success")
+        try:
+            while iteration < max_iterations:
+                iteration += 1
+                
+                if output is None:
+                    output = self.enact_plan(plan)
+                
+                review_result = self.review_output(output)
+                
+                if review_result.verdict:
+                    self.logger.info("Task completed successfully")
                     final_result = output
-                    final_review = f"Max iterations reached without success:\n\n{review_result.recommendation}"
-        
-        final_output = self._extract_final_output(final_result)
-        
-        return AgentProcessOutput(
-            task=self.task,
-            iterations=iteration,
-            final_plan=plan.as_formatted_text(),
-            final_output=final_output,
-            final_review=final_review
-        )
+                    final_review = f"{'Passed' if review_result.verdict else 'Failed'}"
+                    break
+                else:
+                    self.logger.info(f"Review failed. Recommendation: {review_result.recommendation}")
+                    if iteration < max_iterations:
+                        if review_result.revision_location == "plan":
+                            plan = self.revise_plan(plan, review_result.recommendation)
+                            output = None  # Reset output to force re-execution of the plan
+                        elif review_result.revision_location == "output":
+                            revision_result = self.revise_output(output, review_result.recommendation)
+                            output = revision_result.revised_output
+                        else:
+                            self.logger.warning(f"Unknown revision location: {review_result.revision_location}")
+                    else:
+                        self.logger.warning("Max iterations reached without success")
+                        final_result = output
+                        final_review = f"Max iterations reached without success:\n\n{review_result.recommendation}"
+            
+            final_output = self._extract_final_output(final_result)
+            
+            return AgentProcessOutput(
+                task=self.task,
+                iterations=iteration,
+                final_plan=plan.as_formatted_text(),
+                final_output=final_output,
+                final_review=final_review
+            )
+        finally:
+            self.stop_loading_animation()
+            sys.stdout.write('\rDone!     \n')
+            sys.stdout.flush()
+
 
     def _extract_final_output(self, output):
         if isinstance(output, PlanStepResultList) and output.plan_steps:
@@ -403,15 +442,16 @@ if __name__ == "__main__":
         general_agent_output_revision_sys_prompt,
     )
     from literature_reviewer.components.tool import BaseTool
+    from literature_reviewer.agents.personas.squilliam_fancyson import (
+        challenged_ascii_art,
+        complete_ascii_art
+    )
 
     agent_task = AgentTask(
-        action="Create a short historical essay written like shakespeare. Find and use appropriate reference material, then write the essay using it",
-        desired_result="a short historical essay written like shakespeare",
+        action="Create a short essay on scoliosis treatment via growth modulation. Find and use appropriate reference material, then write the essay using it",
+        desired_result="a short scientific overview of scoliosis treatment via growth modulation",
     )
-    # agent_task = AgentTask(
-    #     action="Create a poem backed by concepts discussed by famous scientists, mention their scholarly work, get one or two exact citations to mention in-text. First, gather ideas, second, find the key themes, third, write the poem",
-    #     desired_result="A poem backed by concepts discussed by famous scientists",
-    # )
+
     model_interface = ModelInterface(
         prompt_framework=PromptFramework.OAI_API,
         model=Model("gpt-4o-mini","OpenAI"),
@@ -462,8 +502,8 @@ if __name__ == "__main__":
             )
 
         def use(self, step: AgentPlanStep) -> ToolResponse:
-            system_prompt = "You are a creative poetry writer."
-            user_prompt = f"Please write a poem based on the following prompt: {step.prompt}. Use the references provided, but only output the poem itself as a single string in the output field, and if there are any citations or explanations necessary, fill those in the explanations field."
+            system_prompt = "You are an author of many skills."
+            user_prompt = f"Please write the type of content requested by the user based on the following prompt: {step.prompt}. Use the references provided, but only output the content itself as a single string in the output field, and if there are any citations or explanations necessary, fill those in the explanations field."
             output = self.model_interface.chat_completion_call(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
@@ -483,113 +523,15 @@ if __name__ == "__main__":
         "revise_plan": general_agent_plan_revision_sys_prompt,
         "revise_output": general_agent_output_revision_sys_prompt,
     }
-    
-    # Add a placeholder for custom ASCII art
-    challenged_ascii_art = """
-    
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   ()               _  _               
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   /\              // //               
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░▒▒▒▒▒▒▒░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  /  )  _,  . . o // // o __.  ______  
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░▒▒█▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓█▓▒░░░░░░░░░░░░░░░░░░░░░░ /__/__(_)_(_/_<_</_</_<_(_/|_/ / / <_ 
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▒▒▒▓███▓░░░░░░░░░░░░░░░░░        />                             
-░░░░░░░░░░░░░░░░░░░░░░░░░░░▒▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓██▓░░░░░░░░░░░░░░       |/                              
-░░░░░░░░░░░░░░░░░░░░░░░░░▒█▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓█▒░░░░░░░░░░░    _____                              
-░░░░░░░░░░░░░░░░░░░░░░░░▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░░░░░░▒▒▒▒▒▒▒▒▒▒▒█▓░░░░░░░░░     /  '                              
-░░░░░░░░░░░░░░░░░░░░░░░█▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░░░░░░░░░░░░░░░░▒░▒▒▒▒▒▒▒▒▓█▓░░░░░░░  ,-/-,__.  ____  _. __  , _   __ ____ 
-░░░░░░░░░░░░░░░░░░░░░▒█▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░░░░░░░░░▒▓█▓▓░░░░░░░░░░▒▒▒▒▒▒▒▒█▓░░░░░ (_/  (_/|_/ / <_(__/ (_/_/_)_(_)/ / <_
-░░░░░░░░░░░░░░░░░░░░░█▒▒▒▒▒▒▒▒▒▒▒░░░░░░░░░░░░▒▒▓▓▒▒▒▒░░░░░░░░░░░░░░░░░░░▒▒▒██░░░░                       /               
-░░░░░░░░░░░░░░░░░░░░▓▒▒▒▒▒▒▒▒▒░░░▒▒▓▒▒▒▒▒▒▓▓▒▒▒▒▒▒▓▓▓▓▓▓▒▒▒░░░░░░░░░░░░░░▒░░▓█░░░                      '                
-░░░░░░░░░░░░░░░░░░░▒█▒▒▒▒▒▒▒░░▒▒▒░░░░░░░▒▒▒▒▓▓▓▒▒░░░░░░░░▒▒▒░░░░░░░░░░░░░░░░░█░░░
-░░░░░░░░░░░░░░░░░░░██▒▒▒▒▒▒░░░░░▒▓▓▓▓▓▓▓▒▒░▒▒▒▒▒▓▓▓▓▓▓▒▒▒▒▒▒▒░░░░░░░░░░░░░░░░█▒░░
-░░░░░░░░░░░░░░░░░░░██▒▒▒▒▒░░░░░░▒▒░░░░░▒▓██████████▓▓▓▒▒▒▒▒▒▒▒░░░░░░░░░░░░░░░█▓░░
-░░░░░░░░░░░░░░░░░░░▓█▒▒▒▒░░░░░░▒▒▓██████████▓▒▒▒▒▒█▓░░░░░░░░░░░░░░░░░░░░░░░░░██░░
-░░░░░░░░░░░░░░░░░░░░█▓░░░░░░░░░░░▓▓▓▒▒▒██▒▒▒▒▒▒▒▒▒▒█▒░░░░░░░░░░░░░░░░░░░░░░░░█░░░
-░░░░░░░░░░░░░░░░░░░░░█▒░░░░░░░░░▓▓▒▒▒▒▒█▓▒▒▒▒▒▒▒▒▒▒▒▓░▒▒░░░░░░░░░░░░░░░░░░░░▓▓░░░
-░░░░░░░░░░░░░░░░░░░░░▒█▒▒░░░░░░▓█▒▒▒▒▒▒█▒▒▒▒▒▒▒▒▒▒▒▒█▒░░▒░░░░░░░░░░░░░░░░░░▓█░░░░
-░░░░░░░░░░░░░░░░░░░░░░░█▓▒░░░░░█▓▒▒▒▒▒▓█▓▒▒▒▒▒▒▒▒▒▒▒▓▓░░░░░░░░░░░░░░░░░░░░▓█▒░░░░
-░░░░░░░░░░░░░░░░░░░░░░░░▒██▒░░░█▓▒▒▒▒▒▓█▓▒▒▒▒▒▒▒▒▒▒▒▓█░░░░░░░░░░░░░░░░░░░██░░░░░░
-░░░░░░░░░░░░░░░░░░░░░░░░░░░▓▓▒▒█▓▓▒▒▒▒▓█▒▒▒▒▒▒▒▒▒▒▓▒▓▓█▒░░░░░░░░░░░░░░░▓█▒░░░░░░░
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░█▒▒▒▒▓██▓▒▒▒▒▒▒████▒▒▓▒▒░░░░░░░░░░░░░▒▓█▓░░░░░░░░░
-░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░▓▒░░░▒███░░░░░░█▓▓█░░█▒░░░░░░░░░░░▒▓▓▒░░░░░░░░░░░░
-░░░░░░░░░░▓█▓▓▓▓▓▓▒░░░░░░░░░░░░░▓░░░░▒▓▓▓░░░░░▒▓▓▒░▒▓░░░▒░▒▒▒▒▒▒▓▒░░░░░░░░░░░░░░░
-░░░░░░░░▓█▓▒▒▒▒▒▒▒▓█▓░░░░░░░░░░░░▓▒░░▓▒▒▒▓░░░░░░░░▒█▒░░▒▒▒█▒░░░░░░░░░░░░░░░░░░░░░
-░░░░░░░▓█▒▒▒▒▒░░░▒░░▓▓░░░░░░░░░░░░░▒█▒▒▒▒▒█▒░░░░▒█▒░░░▒▒▒▒█░░░░░░░░░░░░░░░░░░░░░░
-░░░░░░▓█▒▒▒▒░░▒░░░▒░░▓█░░░░░░░░░░░░▒▓▒▒▒▒▒▒█▓▒▓▒▒▒░░░▒▒▒▒░█░░░░░░░░░░░░░░░░░░░░░░
-░░░░░▓█▒▒▒▒▒░░▒░░░░░░░█▓░░░░░░░▒▓▓▓▓▒▒▒▒▒▒█▒▒░░░░░░░▒▒▒▒▒▒▓▓▓▓▒░░░░░░░░░░░░░░░░░░
-░░░░░█▓▒▒▒▒▒░▒░░░▒█▓▒░▓█░░░▒▓▓▒▒▒▒█▒▒▒▒▒▒▓▓▒▒░░░░░░░░░░░░░░░▒▒▓▓█▓▒▒░░░░░░░░░░░░░ 
-░░░░█▓▒▒▒▒░░▒░░▒▓█▓▒▒░▓█░▒▓▒░░░░░█▒▒▒▒▒▒▒█▓▒▒▒▒▒▒▒▒▒▒▒▒░░░░▒░▒░▒░▒▓▓█▓░░░░░░░░░░░
-░░░▒█▒▒▒░░░░░▒▓█▓▒▒▒░░▓▓█▒░░░▒░░▓▒▒▒▒▒▒▒░██▓▓▒▒▒▒▒▒▒▒▒▓▓█▓▒▒▒▒▒▒░▒▒░░▒▓█▒░░░░░░░░
-░░░▓▓▒▒░░▒▓██████▓▒▒░░██▒░░░░░░▒█▒▒▒▒▒▒▒▒▒████████▓▓▓▓▓▓▓▓▓▓▓▓▓██▓▒░▒░░▒█░░░░░░░░
-░░░░░░░▒░▒█▓▒▒▒▒▒█▒▒░░█▓▓░░░░░░▒█▒▒▒▒▒▒▒▒░██████████▓▓▓▓▓▓▓▓▓▓▓▓██▒░▒░░░▓█░░░░░░░    __________________________________________
-░░░░░░░░░░▓█▒▒▒▒▒█▒▒░▒█░▒▒▒▓▒▒▒█▓▒▒▒▒▒▒░░░▓▓▒▒░░░░░▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░██░░░░░░░  /                                          \\
-░░░░░░░░░░░▓█▒▒▒▒█▒░░▒▓░░░░░░░░█▒▒▒▒▒▒░░░░▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒░░░░▒▒▓▓▓█▒░░░░░░░░  |  Still searching for answers, are we?     |
-░░░░░░░░░░░░▒█▓▒▒█▒▒▒▓▓▒░░░░░░░▓▒▒▒▒▒▒░░░░▓▓▒▒▓▓▒▒▓▓░▒▒▒▒▓▓▓▓▓▓▓▓█▓▓▓▒░░░░░░░░░░░ -|  Perhaps I'll take a look... I suppose    |
-░░░░░░░░░░░░░▓████████▓▓█░░░░░░▒▓▒▒▒▒░░░░░▓░░░▓▒░▒▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  |  it would be worth MY time.               |
-░░░░░░░░░░░░█▓▓▓▓▓▓▓▓▓▓▓█▓░░░░░░▓░░░░░░▒░▓░░░░▓▒░█░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  \\__________________________________________/
-░░░░░░░░░░░▒█▓▓▓▓▓▓▓▓▓▓▓█▒░░░░░░░▓▒░░░░▓▓░░░░░▓▒▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-░░░░░░░░░░░▒█▓▓▓▓▓▓▓▓▓▓██░░░░░░░░░▒▓▓▒▒░░░▓▓▓▓█▒▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-░░░░░░░░░░░░▒▓▓█████████▓░░░░░░░░░░░░░░░▓▓▓▓███▒▓▒▒▒▒▒░░░░░░░░░░░░░░░░░░░░░░░░░░░ 
-    
-    """
-    
-    complete_ascii_art = """
-    
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▒▒▒▒▒▒▒▒▒▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▒▒░░░░░░░░░░░░░░░░░░░▒▓▓▒▒▒▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▒░░░░░░░░▒░░░░░░░░░░░░░░░░░░▒▒▓▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓░░░░▒░░░░░░░▒▒▓▓▓▓▓░░░░░░░░░░░░░░░░▓▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒░░░░░░░▒▓▒░░░░░░░░░░░░░░░░░░░░░░░░░░░░░▓▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓░░░░░░▒▓░░░░░░░░░▒▓███▓░░░░░░░░░░░░░░░░░░░░▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▒░░░░░░░▒████▓░▒██████████▓▒░░░░░░░░░░░░░░░░░▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒░░░░░░░▓███████████▓▓▒▒▓▓███████▓▒░░░░░░░░░░░░▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░▒▓███▓▒▒▒▓██▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░▒▓██▓▒░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░▒▓▓▓▒▒░░░░░░░░░░░░░▒▒▒▒▒▒░░░░░░░░░░░░░░░░░░░░▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░░░░░░░░▒▒▒▒░░░▒▒▒▒▒▒▒▒▒▒░░░░░░░░░░░░░░░░░▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒░░░░░░░░░░░▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░░░░░░░░░▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░░░░▒▒▒▒▒▒▒▒▒▒▓▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░░░░░░░▓▓▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░░░▒▒▒▒▒▒▒▒▒▒▓▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░░░░▓▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒░░░░░▒▒▒▒▒▒▒▒▒▒▒▓▒░▒▒▒▒▒▒▒▒▒▓▒░░░░░░▓▓▒▒▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓░░░░▒░▒▒▒▒▒░░▒▒░▒▓██▓▒░▒▒▓█▓▒░▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▒▒░▒█▓▒░░░▓▒░▒▓▓░░░░░░▒▒░▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒░░▓▓▓░▒▒░▒░░▓▓▒░░░░░▒▒░▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓░░░▒▒▒░░░░▒▒░░░░░░░▒▒░░▒▒░░░░░░▒▓▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓░░▒▒░░░░░░▒▓▒▒▒▒▒▒░░░░▒▒▒▓█▓▒░░░▓▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▒░░░░░░░▒▒░░░░░░░░▒▒░▒▓▓▓▓▓▒░░▓▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░▒▓░░░░░░░░▒░░░░░▒▒▒░░░░▓▓▓▓▓▓▓░░▓▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓░░▒▒▓▓▓▒░░░░░░░░▒▒▓▒▒░░░░░░▒▓▓▓▓▓▓▓▒░░▓▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░▓▓▓▓▓░░░░░░░░░▒░░░░░░░▓▓▓▓▓▓▓▓▒▓▓▒░▓▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓░░▒▓▓▓▓░░░░░░░░░▒▒░▒▓▓▓▓▓▓▓▓▓▓▒▒▒▓▒░▒▓▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓░░▒▓▓▓░░░░░░░░░░▓▓▓▓▓▓▓▓▓▓▒▓▒▒▓▓░░▒▓▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░▒█░░░░░░░░░░▓▓▓▓▓▓▓▓▓▒▒▒▓▓░░░▒▓▒▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒░░▒▒░░░░░░░░░▒▓▓▓▓▓▓▓▓▓▒░░░░░▓▒▒▒▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒░▓░░░░░░░░░▒▓▓▓▓▓▒░░░░░░▒▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒░░░░░░░░▒░░░░░░░░░▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░▒▓▒▒▒▒▒▒▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▒▒▒▒▒▒▓░░░▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓░░░▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓░░░▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▒▒▓▒▒▒░▒▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒░▒▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▒▒▒▒▒▒▒▒▒░░░▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▒░▒▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▒▒▒▓▓▒▓▓▒░▒▓▒▒▒░░░░░▒▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓█▓▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
-▒▒▒▒▒▒▒▓▓▓▒▒▒▒▒▒▒▒░▒░░░░░░░░▒▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▓▓▓▓█▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
-▒▒▒▒▓▓▒▓▓▒▒▒▒▒░░░░░░░░░░░░░░▒▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓█▓▓▓▓▓▓▓▓▓▓████▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒
-▒▒▓▓▒▒░░░░░░░░░░░░░░░░░▓▒░░░░▒█▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓██▓▓▓▓▓▓▓▓██████▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒
-▓▓▓▒░░░░░░░░░░░░░░░▒▓▓▓█▒░▒▓████▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓███▓▓▓▓▓▓████████▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓██████████▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓█████▓▓▓▓███████▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓██████████▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓█████▓▓█████████▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ You're WELCOME!
-    
-    """
       
-    agent = LLMAgent(
+    agent = Agent(
         name="Squilliam Fancyson",
         task=agent_task,
         prior_context="",
         model_interface=model_interface,
         system_prompts=system_prompts,
         tools=tools,
-        verbose=False,
+        verbose=True,
         max_plan_steps=10,
         ascii_art = challenged_ascii_art
     )
