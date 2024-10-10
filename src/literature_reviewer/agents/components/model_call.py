@@ -4,7 +4,7 @@ frameworks and providers somewhat doable as long as more don't keep
 popping up quicker than I can keep track of
 """
 from importlib import import_module
-from literature_reviewer.agents.frameworks_and_models import ( #noqa
+from literature_reviewer.agents.components.frameworks_and_models import ( #noqa
     PromptFramework, Model
 )
 from typing import Union, List
@@ -23,7 +23,7 @@ class ModelInterface:
     def _import_framework_module(self):
         module_name = self.prompt_framework.value.lower()
         return import_module(
-            f"literature_reviewer.agents.frameworks.{module_name}"
+            f"literature_reviewer.agents.components.frameworks.{module_name}"
         )
     
     @staticmethod

@@ -1,5 +1,6 @@
 """
 Agent class
+
 Includes model calling, tool definition if necessary,
 reflection, at agent level
 
@@ -13,36 +14,45 @@ or O1Agent depending on inputs
 
 
 Additions:
-1. [ ] Better printout
+1. [x] Better printout
 2. [ ] Requiring sources/citations baked into classes as option
 3. [ ] Efficient use of prior context, rather than pure accumulation?
 
 Constraints:
-1. [ ] Tools are responsible for their own output formats which 
+1. [~] Tools are responsible for their own output formats which 
        adhere to ToolResponse but can extend it
 """
-import datetime, json, logging, sys
-from pydantic import BaseModel
-from typing import Dict
-from literature_reviewer.agents.model_call import ModelInterface
-from literature_reviewer.components.tool import BaseTool, ToolResponse
+import json, logging, sys
 from datetime import datetime, timezone
+from typing import Dict
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
-from rich.markdown import Markdown
 
-from literature_reviewer.agents.agent_pydantic_models import *
+from literature_reviewer.agents.components.model_call import ModelInterface
+from literature_reviewer.agents.components.agent_pydantic_models import (
+    AgentPlan,
+    AgentPlanStep,
+    AgentPlanStep,
+    AgentPlan,
+    PlanStepResult,
+    PlanStepResultList,
+    AgentReviewVerdict,
+    AgentTask,
+    AgentProcessOutput,
+    AgentRevisionTask,
+    AgentOutputRevision,
+    ConversationHistoryEntry,
+    ConversationHistoryEntryList
+)
+from literature_reviewer.agents.components.memory import (
+    LoadingAnimation, run_with_loading, add_to_conversation_history
+)
+from literature_reviewer.agents.components.printout import print_ascii_art
+from literature_reviewer.tools.basetool import BaseTool, ToolResponse
 
-import time
-import threading
-from itertools import cycle
 
-"""
-=======================================================
-Agents
-=======================================================
-"""
 class Agent:
     """
     An intelligent agent capable of planning and executing tasks.
@@ -97,6 +107,8 @@ class Agent:
         self.logger = logging.getLogger(f"{self.__class__.__name__}_{self.name}")
         self.logger.setLevel(logging.DEBUG if self.verbose else logging.INFO)
         
+        self.loading_animation = LoadingAnimation()
+        
         if self.prior_context:
             self.conversation_history.entries.append(ConversationHistoryEntry(
                 agent_name=self.name,
@@ -107,102 +119,6 @@ class Agent:
                 content_structure="str"
             ))
             self.logger.debug(f"Added prior context: {self.prior_context}")
-
-        self.loading_event = threading.Event()
-        self.loading_thread = None
-
-    def start_loading_animation(self):
-        def animate():
-            for c in cycle(['|', '/', '-', '\\']):
-                if self.loading_event.is_set():
-                    break
-                sys.stdout.write('\rProcessing ' + c)
-                sys.stdout.flush()
-                time.sleep(0.1)
-            sys.stdout.write('\r' + ' ' * 20 + '\r')  # Clear the line
-
-        self.loading_thread = threading.Thread(target=animate)
-        self.loading_thread.start()
-
-    def stop_loading_animation(self):
-        self.loading_event.set()
-        if self.loading_thread:
-            self.loading_thread.join()
-
-    def run_with_loading(func):
-        def wrapper(self, *args, **kwargs):
-            if not self.loading_thread or not self.loading_thread.is_alive():
-                self.start_loading_animation()
-            try:
-                return func(self, *args, **kwargs)
-            finally:
-                pass  # Don't stop the animation here
-        return wrapper
-
-    #decorator function for the others
-    def add_to_conversation_history(func):
-        def wrapper(self, *args, **kwargs):
-            result = func(self, *args, **kwargs)
-            heading = func.__name__
-            timestamp = datetime.now(timezone.utc).isoformat()
-            
-            content_structure = ""
-            if isinstance(result, BaseModel):
-                content_structure = result.__class__.__name__
-                content = result.model_dump_json()
-            else:
-                content = str(result)
-            
-            entry = ConversationHistoryEntry(
-                agent_name=self.name,
-                heading=heading,
-                timestamp=timestamp,
-                model=self.model_interface.model.model_name,
-                content=content,
-                content_structure=content_structure
-            )
-            self.conversation_history.entries.append(entry)
-            
-            if self.verbose:
-                self.print_latest_entry(entry)
-            
-            return result
-        return wrapper
-
-
-    def print_ascii_art(self, ascii_art=None):
-        art_to_print = ascii_art if ascii_art is not None else self.ascii_art
-        console = Console()
-        if art_to_print:
-            # Convert the ASCII art to a Text object and style it
-            colored_art = Text(art_to_print)
-            colored_art.stylize("cyan")
-            console.print(colored_art)
-
-    def print_latest_entry(self, entry):
-        console = Console(file=sys.stderr)
-        console.print()
-        title = f"{entry.agent_name} - {entry.heading} | {entry.timestamp} | {entry.model}"
-        
-        if entry.content_structure:
-            try:
-                model_class = globals()[entry.content_structure]
-                parsed_content = model_class.parse_raw(entry.content)
-                content = parsed_content.as_rich()
-            except (KeyError, ValueError) as e:
-                content = Text(f"Error formatting content: {str(e)}", style="red")
-        else:
-            content = Markdown(entry.content)
-        
-        main_panel = Panel(
-            content,
-            title=title,
-            border_style="blue",
-            padding=(1, 1)
-        )
-        
-        console.print(main_panel)
-        console.print()
 
 
     @run_with_loading
@@ -224,7 +140,7 @@ class Agent:
             user_prompt=self.task.as_xml_string(),
             response_format=AgentPlan,
         )
-        
+                
         return AgentPlan(**json.loads(plan_json))
 
         
@@ -366,7 +282,7 @@ class Agent:
 
     @add_to_conversation_history
     def run(self, max_iterations):
-        self.print_ascii_art(self.ascii_art)
+        print_ascii_art(self.ascii_art)
         
         iteration = 0
         plan = self.create_plan()
@@ -414,7 +330,7 @@ class Agent:
                 final_review=final_review
             )
         finally:
-            self.stop_loading_animation()
+            self.loading_animation.stop()
             sys.stdout.write('\rDone!     \n')
             sys.stdout.flush()
 
@@ -432,16 +348,16 @@ class Agent:
 if __name__ == "__main__":
     from dotenv import load_dotenv
     load_dotenv()
-    from literature_reviewer.agents.frameworks_and_models import ( #noqa
+    from literature_reviewer.agents.components.frameworks_and_models import ( #noqa
         PromptFramework, Model
     )
-    from literature_reviewer.components.prompts.agent import (
+    from literature_reviewer.agents.components.prompts.general_agent_system_prompts import (
         general_agent_planning_sys_prompt,
         general_agent_output_review_sys_prompt,
         general_agent_plan_revision_sys_prompt,
         general_agent_output_revision_sys_prompt,
     )
-    from literature_reviewer.components.tool import BaseTool
+    from literature_reviewer.tools.basetool import BaseTool
     from literature_reviewer.agents.personas.squilliam_fancyson import (
         challenged_ascii_art,
         complete_ascii_art
@@ -540,7 +456,7 @@ if __name__ == "__main__":
     
     result = agent.run(max_iterations=10)
 
-    agent.print_ascii_art(ascii_art=complete_ascii_art)
+    print_ascii_art(ascii_art=complete_ascii_art)
     
     console = Console(file=sys.stderr)
     output_text = Text(result.final_output)

@@ -1,11 +1,11 @@
 from pydantic import BaseModel
 from typing import List
-from literature_reviewer.components.tool import ToolResponse
 from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
 from rich.table import Table
 from rich.markdown import Markdown
+from literature_reviewer.tools.basetool import ToolResponse
 
 
 class AgentPlanStep(BaseModel):

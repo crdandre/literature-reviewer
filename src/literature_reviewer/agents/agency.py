@@ -116,22 +116,22 @@ class Agency:
 
 if __name__ == "__main__":
     import json
-    from literature_reviewer.agents.model_call import ModelInterface
-    from literature_reviewer.components.tool import BaseTool, ToolResponse
+    from literature_reviewer.agents.components.model_call import ModelInterface
+    from literature_reviewer.tools.basetool import BaseTool, ToolResponse
 
-    from literature_reviewer.agents.agent_pydantic_models import *
+    from literature_reviewer.agents.components.agent_pydantic_models import *
     from dotenv import load_dotenv
     load_dotenv()
-    from literature_reviewer.agents.frameworks_and_models import ( #noqa
+    from literature_reviewer.agents.components.frameworks_and_models import ( #noqa
         PromptFramework, Model
     )
-    from literature_reviewer.components.prompts.agent import (
+    from literature_reviewer.agents.components.prompts.general_agent_system_prompts import (
         general_agent_planning_sys_prompt,
         general_agent_output_review_sys_prompt,
         general_agent_plan_revision_sys_prompt,
         general_agent_output_revision_sys_prompt,
     )
-    from literature_reviewer.components.tool import BaseTool
+    from literature_reviewer.tools.basetool import BaseTool
     from literature_reviewer.agents.personas.squilliam_fancyson import (
         challenged_ascii_art
     )
@@ -228,10 +228,10 @@ if __name__ == "__main__":
             "revise_plan": lambda *args, **kwargs: "revise the steps that led to this plan",
             "revise_output": lambda *args, **kwargs: "revise the output of the plan for correctness and clarity"
         },
-        tools={}, #<--makes up tools if none??????? TODO: check this out
+        tools={"write": WriteTool(model_interface=model_interface)}, #<--makes up tools if none??????? TODO: check this out
         verbose=True,
         max_plan_steps=3,
-        ascii_art = ":)"
+        ascii_art = "HI :)"
     )
       
     worker = Agent(
@@ -257,7 +257,7 @@ if __name__ == "__main__":
             "revise_plan": lambda *args, **kwargs: "revise the steps that led to this aggregation",
             "revise_output": lambda *args, **kwargs: "revise the output of the aggregation for correctness and clarity"
         },
-        tools={},
+        tools={"write": WriteTool(model_interface=model_interface)}, #<--makes up tools if none??????? TODO: check this out
         verbose=True,
         max_plan_steps=3,
         ascii_art = "AAAAGGGGGGGRRREEEEEGGGAAATTTEEEE"

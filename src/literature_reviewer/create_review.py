@@ -8,13 +8,13 @@ May it generate useful ideas.
 import argparse, datetime, logging, os
 import controlflow as cf
 from dotenv import load_dotenv
-from literature_reviewer.tasks import (
-    analyze_clusters,
-    get_initial_search_queries,
-    gather_the_corpus,
-    write_review
+from literature_reviewer.tools import (
+    cluster_analyzer,
+    corpus_gatherer,
+    research_query_generator,
+    review_author
 )
-from literature_reviewer.components.model_interaction.frameworks_and_models import PromptFramework
+from literature_reviewer.agents.utils.frameworks_and_models import PromptFramework
 
 @cf.flow
 def create_literature_review(
@@ -101,7 +101,7 @@ def create_literature_review(
     """
 
     # Get semantic scholar queries
-    query_generator = get_initial_search_queries.ResearchQueryGenerator(
+    query_generator = research_query_generator.ResearchQueryGenerator(
         user_goals_text=user_goals_text,
         user_supplied_pdfs_directory=user_supplied_pdfs_path,
         chunk_size=chunk_size,
@@ -117,7 +117,7 @@ def create_literature_review(
     semantic_scholar_queries = query_generator.embed_initial_corpus_get_queries()
     
     # Initialize and run CorpusGatherer to embed user info/pdfs
-    gather_the_corpus.CorpusGatherer(
+    corpus_gatherer.CorpusGatherer(
         search_queries=semantic_scholar_queries,
         s2_query_response_length_limit=s2_query_response_length_limit,
         user_goals_text=user_goals_text,
@@ -133,7 +133,7 @@ def create_literature_review(
     ).gather_and_embed_corpus()
 
     # Summarize Clusters in reduced-dimension embeddings
-    clusters_summary = analyze_clusters.ClusterAnalyzer(
+    clusters_summary = cluster_analyzer.ClusterAnalyzer(
         user_goals_text=user_goals_text,
         max_clusters_to_analyze=cluster_analyis_max_clusters_to_analyze,
         num_keywords_per_cluster=cluster_analysis_num_keywords_per_cluster,
@@ -148,7 +148,7 @@ def create_literature_review(
     ).perform_full_cluster_analysis()
 
         
-    review_outline = write_review.ReviewAuthor(
+    review_outline = review_author.ReviewAuthor(
         user_goals_text=user_goals_text,
         multi_cluster_summary=clusters_summary,
         materials_output_path=run_writeup_materials_output_path,

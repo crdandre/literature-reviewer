@@ -33,7 +33,9 @@ def general_agent_planning_sys_prompt(max_steps, tool_specs=None) -> str:
         
         {tool_spec_text}
         
-        The output format of your plan is called AgentPlan and contains the field "steps" which is a list of strings, "reason" which is an explanation of the step, "prompt" which is a prompt to an LLM to carry out the step, and "tool_name" which is the name of the appropriate tool to use, if any (could be None). Be sure to output your steps using this format. The last step should contain the wisdom of the prior steps to produce a unified output.
+        The output format of your plan is called AgentPlan and contains the field "steps" which is a list of strings, "reason" which is an explanation of the step, "prompt" which is a prompt to an LLM to carry out the step, and "tool_name" which is the name of the appropriate tool to use. HOWEVER, consider whether using no tool at all is better than using a supplied tool. If this is the case, return "none" for the tool name. If you do want to use a tool, it MUST be on the supplied tool_specs list. NO OTHER TOOLS ALLOWED!
+        
+        Be sure to output your steps using this format. The last step should contain the wisdom of the prior steps to produce a unified output.
         
         IMPORTANT: If two consecutive steps would use the same tool, re-read the steps, and if it's reasonable to do so, combine them into one step. This will cut down on redundant tool use, and cost your user less money and time! They will be happy for both!!
         """
