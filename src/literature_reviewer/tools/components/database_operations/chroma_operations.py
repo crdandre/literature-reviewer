@@ -5,7 +5,7 @@ Thanks to https://github.com/pixegami/rag-tutorial-v2/blob/main/populate_databas
 import chromadb
 from langchain.schema.document import Document
 from langchain_chroma import Chroma
-from literature_reviewer.components.agents.frameworks.langchain import get_embedding_function
+from literature_reviewer.agents.components.frameworks.langchain import get_embedding_function
 import numpy as np
 import pandas as pd
 

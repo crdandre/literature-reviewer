@@ -362,16 +362,25 @@ if __name__ == "__main__":
         challenged_ascii_art,
         complete_ascii_art
     )
+    from literature_reviewer.tools.research_query_generator import ResearchQueryGenerator
 
     agent_task = AgentTask(
-        action="Create a short essay on scoliosis treatment via growth modulation. Find and use appropriate reference material, then write the essay using it",
-        desired_result="a short scientific overview of scoliosis treatment via growth modulation",
+        action="Plan to write a short scientific summary of the literature on computational spine modeling in scoliosis. Search for the appropriate search queries, summarize them, then write up a list of the queries followed by a paragraph explaining why you would like to search for these queries",
+        desired_result="a list of queries and an explanation for them",
     )
 
     model_interface = ModelInterface(
         prompt_framework=PromptFramework.OAI_API,
         model=Model("gpt-4o-mini","OpenAI"),
     )
+
+    with open("/home/christian/literature-reviewer/user_inputs/goal_prompt_ais.txt", "r") as file:
+        user_goals_text = file.read()
+    user_supplied_pdfs_directory = "/home/christian/literature-reviewer/user_inputs/user_supplied_pdfs"
+    num_vec_db_queries = 3
+    vec_db_query_num_results = 2
+    num_s2_queries = 10
+
     
     # Example tools
     class SearchTool(BaseTool):
@@ -431,6 +440,14 @@ if __name__ == "__main__":
     tools = {
         "search": SearchTool(model_interface=model_interface),
         "write": WriteTool(model_interface=model_interface),
+        "generate_queries": ResearchQueryGenerator(
+            user_goals_text=user_goals_text,
+            user_supplied_pdfs_directory=user_supplied_pdfs_directory,
+            model_interface=model_interface,
+            num_vec_db_queries=num_vec_db_queries,
+            vec_db_query_num_results=vec_db_query_num_results,
+            num_s2_queries=num_s2_queries,
+        ),
     }
     
     system_prompts = {
