@@ -55,8 +55,8 @@ class ResearchQueryGenerator(BaseTool):
     def use(self, step: Any) -> ToolResponse:
         queries = self.embed_initial_corpus_get_queries()
         return ToolResponse(
-            output=json.dumps(queries),
-            explanation="Generated research queries based on user goals and supplied PDFs"
+            output=json.dumps({"queries": queries}),
+            explanation="Generated research queries based on user goals and supplied PDFs."
         )
 
     def embed_user_supplied_pdfs(self):
@@ -95,11 +95,8 @@ class ResearchQueryGenerator(BaseTool):
     def embed_initial_corpus_get_queries(self):
         self.embed_user_supplied_pdfs()
         raw_s2_queries = self.search_initial_corpus_for_queries_based_on_goals()
-        # Parse the JSON string to get the list of queries
         query_objects = json.loads(raw_s2_queries)
         queries = [obj['query'] for obj in query_objects['s2_queries']]
-        
-        # Return only the parsed list of queries
         return queries
 
 

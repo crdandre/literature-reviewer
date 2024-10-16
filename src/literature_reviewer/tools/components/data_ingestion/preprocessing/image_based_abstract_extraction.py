@@ -5,10 +5,10 @@ from pdf2image.exceptions import (
     PDFPageCountError,
     PDFSyntaxError
 )
-from literature_reviewer.components.agents.model_call import ModelInterface
-from literature_reviewer.components.agents.frameworks_and_models import PromptFramework, Model
-from literature_reviewer.components.input_output_models.response_formats import AbstractExtractionResponse
-from literature_reviewer.components.prompts.literature_search_query import generate_abstract_extraction_from_image_sys_prompt
+from literature_reviewer.agents.components.model_call import ModelInterface
+from literature_reviewer.agents.components.frameworks_and_models import PromptFramework, Model
+from literature_reviewer.tools.components.input_output_models.response_formats import AbstractExtractionResponse
+from literature_reviewer.tools.components.prompts.literature_search_query import generate_abstract_extraction_from_image_sys_prompt
 
 
 def extract_abstract_from_pdf(pdf_path: str, model_interface: ModelInterface, page_limit: int=2) -> str | None:
@@ -26,7 +26,7 @@ def extract_abstract_from_pdf(pdf_path: str, model_interface: ModelInterface, pa
         system_prompt = generate_abstract_extraction_from_image_sys_prompt()
         user_prompt = f"Please analyze this image (page {page_num + 1}) and fill the AbstractExtractionResponse as requested. If the abstract continues from a previous page, append to it."
         # Call the model to analyze the image and extract the abstract
-        response_json = model_interface.entry_chat_call(
+        response_json = model_interface.chat_completion_call(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             image_string=img_str,

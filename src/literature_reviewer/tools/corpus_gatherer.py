@@ -16,33 +16,37 @@ depends on chunk size, set elsewhere
 """
 import json, logging, os, requests
 from langchain.schema import Document
+from typing import Any
 
-from literature_reviewer.components.data_ingestion.semantic_scholar import SemanticScholarInterface
-from literature_reviewer.components.preprocessing.langchain_extract_from_pdf import LangchainPDFTextExtractor
-from literature_reviewer.components.database_operations.chroma_operations import add_to_chromadb
-from literature_reviewer.components.agents.model_call import ModelInterface
-from literature_reviewer.components.agents.frameworks_and_models import Model
-from literature_reviewer.components.prompts.literature_search_query import generate_s2_results_evaluation_system_prompt
-from literature_reviewer.components.input_output_models.response_formats import CorpusInclusionVerdict
-from literature_reviewer.components.preprocessing.image_based_abstract_extraction import extract_abstract_from_pdf
+from literature_reviewer.tools.basetool import BaseTool, ToolResponse
+from literature_reviewer.tools.components.data_ingestion.semantic_scholar import SemanticScholarInterface
+from literature_reviewer.tools.components.data_ingestion.preprocessing.langchain_extract_from_pdf import LangchainPDFTextExtractor
+from literature_reviewer.tools.components.database_operations.chroma_operations import add_to_chromadb
+from literature_reviewer.agents.components.model_call import ModelInterface
+from literature_reviewer.tools.components.prompts.literature_search_query import generate_s2_results_evaluation_system_prompt
+from literature_reviewer.tools.components.input_output_models.response_formats import CorpusInclusionVerdict
+from literature_reviewer.tools.components.data_ingestion.preprocessing.image_based_abstract_extraction import extract_abstract_from_pdf
 
 
-class CorpusGatherer:
+class CorpusGatherer(BaseTool):
     def __init__(
         self,
         search_queries,
         user_goals_text,
+        model_interface: ModelInterface,
         chunk_size=800,
         chunk_overlap=80,
         s2_interface=None,
         s2_results_num_eval_loops=1,
         s2_query_response_length_limit=None,
         pdf_download_path=None,
-        prompt_framework=None,
-        model_name=None,
-        model_provider=None,
         chromadb_path=None,
     ):
+        super().__init__(
+            name="Corpus Gatherer",
+            description="Gathers and embeds a corpus of research papers based on search queries",
+            model_interface=model_interface
+        )
         self.search_queries = search_queries
         self.user_goals_text = user_goals_text
         self.chunk_size = chunk_size
@@ -50,10 +54,26 @@ class CorpusGatherer:
         self.s2_interface = s2_interface or SemanticScholarInterface(query_response_length_limit=s2_query_response_length_limit)
         self.s2_results_num_eval_loops = s2_results_num_eval_loops
         self.pdf_download_path = pdf_download_path
-        self.prompt_framework = prompt_framework
-        self.model_name = model_name
-        self.model_provider = model_provider
         self.chromadb_path = chromadb_path
+        self.required_input = 'generate_queries'  # Specify the required input tool
+
+    def use(self, step: Any) -> ToolResponse:
+        try:
+            approved_paper_ids = self.gather_and_embed_corpus()
+            num_approved_papers = len(approved_paper_ids)
+            
+            # Create a formatted list of approved paper IDs
+            approved_papers_list = "\n".join(f"- {paper_id}" for paper_id in approved_paper_ids)
+            
+            return ToolResponse(
+                output=f"Corpus gathered and embedded successfully. {num_approved_papers} papers approved.",
+                explanation=f"Searched for papers, evaluated them, and added {num_approved_papers} approved papers to the vector database.\n\nApproved papers:\n{approved_papers_list}"
+            )
+        except Exception as e:
+            return ToolResponse(
+                output="Error in gathering and embedding corpus",
+                explanation=f"An error occurred: {str(e)}"
+            )
 
     def search_s2_for_queries(self):
         return self.s2_interface.search_papers_via_queries(self.search_queries)
@@ -129,9 +149,12 @@ class CorpusGatherer:
         chunks_by_source = {}
         for chunk in all_chunks_with_ids:
             source = chunk.metadata.get("source")
-            if source not in chunks_by_source:
-                chunks_by_source[source] = []
-            chunks_by_source[source].append(chunk)
+            if source and os.path.exists(source):
+                if source not in chunks_by_source:
+                    chunks_by_source[source] = []
+                chunks_by_source[source].append(chunk)
+            else:
+                logging.warning(f"Source file not found: {source}")
 
         # Add chunks to each processed result
         for processed_result in processed_results:
@@ -169,9 +192,6 @@ class CorpusGatherer:
         """
         Evaluate papers based on their full abstracts.
         """
-        system_prompt = generate_s2_results_evaluation_system_prompt(self.user_goals_text)
-        chat_model = Model(self.model_name, self.model_provider)
-        chat_interface = ModelInterface(self.prompt_framework, chat_model)
         paper_verdicts = []
 
         for result in results:
@@ -181,17 +201,16 @@ class CorpusGatherer:
             abstract_text = result.get('text', {}).get('abstract')
             
             if not abstract_text:
-                # If no abstract, try to get abstract from PDF extraction
                 pdf_filename = f"{paper_id}.pdf"
                 pdf_path = os.path.join(self.pdf_download_path, pdf_filename)
-                abstract_text = extract_abstract_from_pdf(pdf_path=pdf_path, model_interface=chat_interface)
+                abstract_text = extract_abstract_from_pdf(pdf_path=pdf_path, model_interface=self.model_interface)
 
             if not abstract_text:
                 logging.warning(f"No abstract found for paper {paper_id}.pdf in {self.pdf_download_path}. Skipping evaluation.")
                 continue
 
-            corpus_inclusion_verdict = chat_interface.entry_chat_call(
-                system_prompt=system_prompt,
+            corpus_inclusion_verdict = self.model_interface.chat_completion_call(
+                system_prompt=generate_s2_results_evaluation_system_prompt(self.user_goals_text),
                 user_prompt=abstract_text,
                 response_format=CorpusInclusionVerdict
             )
@@ -267,23 +286,23 @@ class CorpusGatherer:
         )
         # self.delete_excluded_papers(ids_to_delete=excluded_paper_ids)
         self.embed_approved_search_results(approved_paper_ids=approved_paper_ids, all_chunks_with_ids=all_chunks_with_ids)
+        return approved_paper_ids
 
 if __name__ == "__main__":
     # Example usage
-    from literature_reviewer.components.agents.frameworks_and_models import PromptFramework
-
+    from literature_reviewer.agents.components.frameworks_and_models import PromptFramework, Model
     from dotenv import load_dotenv
     load_dotenv(override=True)
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     
     pdf_download_path = "/home/christian/literature-reviewer/framework_outputs/gpt4o_mini_mechanobiology_lg_embedding_more_pdfs_20240930_031238/downloaded_pdfs"
-    model_name = "gpt-4o-mini"
-    model_provider = "OpenAI"
+    model_interface = ModelInterface(
+        prompt_framework=PromptFramework.OAI_API,
+        model=Model("gpt-4o-mini","OpenAI"),
+    )    
     vector_db_path = "/home/christian/literature-reviewer/framework_outputs/gpt4o_mini_mechanobiology_lg_embedding_more_pdfs_20240930_031238/chroma_db"
 
     logging.info(f"PDF_DOWNLOAD_PATH: {pdf_download_path}")
-    logging.info(f"DEFAULT_MODEL_NAME: {model_name}")
-    logging.info(f"DEFAULT_MODEL_PROVIDER: {model_provider}")
     logging.info(f"CHROMA_DB_PATH: {vector_db_path}")
     logging.info(f"DEFAULT_PROMPT_FRAMEWORK: {os.getenv('DEFAULT_PROMPT_FRAMEWORK')}")
     
@@ -294,9 +313,13 @@ if __name__ == "__main__":
         search_queries=search_queries,
         user_goals_text=user_goals_text,
         pdf_download_path=pdf_download_path,
-        prompt_framework=PromptFramework[os.getenv("DEFAULT_PROMPT_FRAMEWORK")],
-        model_name=model_name,
-        model_provider=model_provider,
+        model_interface=model_interface,
         chromadb_path=vector_db_path,
     )
-    corpus_gatherer.gather_and_embed_corpus()
+    
+    # Use the tool.use pattern
+    step = {}  # You can add any necessary step information here
+    response = corpus_gatherer.use(step)
+    
+    print(f"Output: {response.output}")
+    print(f"Explanation: {response.explanation}")

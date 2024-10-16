@@ -33,15 +33,12 @@ from rich.text import Text
 from literature_reviewer.agents.components.model_call import ModelInterface
 from literature_reviewer.agents.components.agent_pydantic_models import (
     AgentPlan,
-    AgentPlanStep,
-    AgentPlanStep,
     AgentPlan,
     PlanStepResult,
     PlanStepResultList,
     AgentReviewVerdict,
     AgentTask,
     AgentProcessOutput,
-    AgentRevisionTask,
     AgentOutputRevision,
     ConversationHistoryEntry,
     ConversationHistoryEntryList
@@ -156,8 +153,9 @@ class Agent:
         """
         results = PlanStepResultList(plan_steps=[])
         accumulated_context = ""
+        step_outputs = {}  # Store outputs of each step
+
         for step in plan.steps:
-            # Add accumulated context to the step prompt
             step_prompt = f"{accumulated_context}\n\nCurrent step: {step.prompt}"
             
             if step.tool_name is None or step.tool_name not in self.tools:
@@ -170,9 +168,20 @@ class Agent:
                 output = ToolResponse(**json.loads(result_json))
             else:
                 try:
+                    tool = self.tools[step.tool_name]
+                    
+                    # TODO: make this generic
+                    # Check if the tool requires input from a previous step
+                    if step.tool_name == 'gather_corpus' and 'generate_queries' in step_outputs:
+                        # Update the tool's search_queries attribute with the output from the previous step
+                        tool.search_queries = json.loads(step_outputs['generate_queries'])['queries']
+                    
                     # Pass the updated prompt with accumulated context to the tool
                     step.prompt = step_prompt
-                    output = self.tools[step.tool_name].use(step)
+                    output = tool.use(step)
+                    
+                    # Store the output for potential use in future steps
+                    step_outputs[step.tool_name] = output.output
                 except Exception as e:
                     self.logger.error(f"Error executing step '{step}' with tool '{step.tool_name}': {str(e)}")
                     continue
@@ -363,10 +372,12 @@ if __name__ == "__main__":
         complete_ascii_art
     )
     from literature_reviewer.tools.research_query_generator import ResearchQueryGenerator
+    from literature_reviewer.tools.corpus_gatherer import CorpusGatherer
+    from literature_reviewer.tools.examples.example_tools import WriteTool, SearchTool
 
     agent_task = AgentTask(
-        action="Plan to write a short scientific summary of the literature on computational spine modeling in scoliosis. Search for the appropriate search queries, summarize them, then write up a list of the queries followed by a paragraph explaining why you would like to search for these queries",
-        desired_result="a list of queries and an explanation for them",
+        action="generate a list of queries using generate_queries, then gather a related corpus using gather_corpus",
+        desired_result="a list of queries and an explanation for them, then a list of papers (part of a gathered corpus) found to correspond to each query",
     )
 
     model_interface = ModelInterface(
@@ -380,66 +391,29 @@ if __name__ == "__main__":
     num_vec_db_queries = 3
     vec_db_query_num_results = 2
     num_s2_queries = 10
+    
+    pdf_download_path = "/home/christian/literature-reviewer/test_outputs"
+    vector_db_path = "/home/christian/literature-reviewer/test_outputs"
 
     
-    # Example tools
-    class SearchTool(BaseTool):
-        """
-        A tool for searching academic literature and retrieving relevant papers.
-        This tool interfaces with academic databases to find peer-reviewed articles
-        based on given search queries. It's particularly useful for tasks that require
-        finding supporting evidence, background information, or specific research in
-        academic fields. The tool can handle complex search queries and return
-        summaries or citations of relevant papers.
-        """
-        def __init__(self, model_interface: ModelInterface):
-            super().__init__(
-                name="SEARCHER",
-                description="Searches for academic papers",
-                model_interface=model_interface
-            )
-
-        def use(self, step: AgentPlanStep) -> str:
-            system_prompt = "You are a helpful academic search assistant."
-            user_prompt = f"Please search for relevant academic papers based on the following query: {step.prompt}. Output the papers to output and any required explanation to explanation"
-            output = self.model_interface.chat_completion_call(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                response_format=ToolResponse,
-            )
-            return ToolResponse(**json.loads(output))
-
-    class WriteTool(BaseTool):
-        """
-        A tool for writing creative poetry based on given prompts or themes.
-        This tool utilizes natural language processing capabilities to generate
-        original poems in various styles and formats. It can incorporate specific
-        themes, emotions, or references provided in the prompt. The WriteTool is
-        particularly useful for tasks that require creative writing, especially
-        in poetic form, and can be used to create poems that reflect or incorporate
-        academic concepts or findings when combined with other research tools.
-        """
-        def __init__(self, model_interface: ModelInterface):
-            super().__init__(
-                name="WRITER",
-                description="Writes poetry",
-                model_interface=model_interface
-            )
-
-        def use(self, step: AgentPlanStep) -> ToolResponse:
-            system_prompt = "You are an author of many skills."
-            user_prompt = f"Please write the type of content requested by the user based on the following prompt: {step.prompt}. Use the references provided, but only output the content itself as a single string in the output field, and if there are any citations or explanations necessary, fill those in the explanations field."
-            output = self.model_interface.chat_completion_call(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                response_format=ToolResponse,
-            )
-            return ToolResponse(**json.loads(output))
-
-
+    """
+    model_interface should be inherited from the agent by default?
+    serial outputs (i.e. tool input dependent on prior tool output as in search_queries)
+    should be handled more explicitly. better tool spec should be given. i.e. define i/o formats?
+    get inspiration from existing agent 
+    maybe strict tool use order requirements for steps too.
+    
+    missing: generic behavior requirements i.e. force use X tool, use prior output of Y format
+    in this pattern (i.e. iterate through search queries and address each individually, etc.)
+    
+    fwiw, some pdfs aren't downloaded. it's worth noting the relevant titles and abstracts because
+    most don't have open access pdfs
+    
+    logging within tools would be nice too to see what's going on with things like paper inclusion
+    """
     tools = {
-        "search": SearchTool(model_interface=model_interface),
-        "write": WriteTool(model_interface=model_interface),
+        # "search": SearchTool(model_interface=model_interface),
+        # "write": WriteTool(model_interface=model_interface),
         "generate_queries": ResearchQueryGenerator(
             user_goals_text=user_goals_text,
             user_supplied_pdfs_directory=user_supplied_pdfs_directory,
@@ -447,6 +421,13 @@ if __name__ == "__main__":
             num_vec_db_queries=num_vec_db_queries,
             vec_db_query_num_results=vec_db_query_num_results,
             num_s2_queries=num_s2_queries,
+        ),
+        "gather_corpus": CorpusGatherer(
+            search_queries=None,  # This will be updated dynamically
+            user_goals_text=user_goals_text,
+            model_interface=model_interface,
+            pdf_download_path=pdf_download_path,
+            chromadb_path=vector_db_path,
         ),
     }
     
@@ -465,11 +446,9 @@ if __name__ == "__main__":
         system_prompts=system_prompts,
         tools=tools,
         verbose=True,
-        max_plan_steps=10,
+        max_plan_steps=2,
         ascii_art = challenged_ascii_art
     )
-    
-
     
     result = agent.run(max_iterations=10)
 
@@ -479,3 +458,5 @@ if __name__ == "__main__":
     output_text = Text(result.final_output)
     output_panel = Panel(output_text, title="Final Output", border_style="bold cyan", expand=False)
     console.print(output_panel)
+
+

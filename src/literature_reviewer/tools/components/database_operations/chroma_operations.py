@@ -8,6 +8,7 @@ from langchain_chroma import Chroma
 from literature_reviewer.agents.components.frameworks.langchain import get_embedding_function
 import numpy as np
 import pandas as pd
+import logging
 
 def add_to_chromadb(chunks_with_ids: list[Document], chroma_path: str, model: str = "text-embedding-3-large"):
     # Load the existing database.
@@ -29,8 +30,10 @@ def add_to_chromadb(chunks_with_ids: list[Document], chroma_path: str, model: st
     if len(new_chunks):
         print(f"Adding new documents: {len(new_chunks)}")
         new_chunk_ids = [chunk.metadata["id"] for chunk in new_chunks]
-        db.add_documents(new_chunks, ids=new_chunk_ids)
-        # db.persist() ?? now saying not a method
+        try:
+            db.add_documents(new_chunks, ids=new_chunk_ids)
+        except Exception as e:
+            logging.warning(f"Error adding documents to ChromaDB: {str(e)}")
     else:
         print("No new documents to add")
         
