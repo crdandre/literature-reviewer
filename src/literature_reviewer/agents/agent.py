@@ -373,11 +373,11 @@ if __name__ == "__main__":
     )
     from literature_reviewer.tools.research_query_generator import ResearchQueryGenerator
     from literature_reviewer.tools.corpus_gatherer import CorpusGatherer
-    from literature_reviewer.tools.examples.example_tools import WriteTool, SearchTool
+    from literature_reviewer.tools.cluster_analyzer import ClusterAnalyzer
 
     agent_task = AgentTask(
-        action="generate a list of queries using generate_queries, then gather a related corpus using gather_corpus",
-        desired_result="a list of queries and an explanation for them, then a list of papers (part of a gathered corpus) found to correspond to each query",
+        action="generate a list of queries using generate_queries, then gather a related corpus using gather_corpus, then cluster the embedded corpus, and analyze the clusters, outputting a summary of them using analyze_clusters",
+        desired_result="a list of queries and an explanation for them, then a list of papers (part of a gathered corpus) found to correspond to each query, finally a summary of the clusters obtained from the embedded text",
     )
 
     model_interface = ModelInterface(
@@ -392,8 +392,8 @@ if __name__ == "__main__":
     vec_db_query_num_results = 2
     num_s2_queries = 10
     
-    pdf_download_path = "/home/christian/literature-reviewer/test_outputs"
-    vector_db_path = "/home/christian/literature-reviewer/test_outputs"
+    pdf_download_path = "/home/christian/literature-reviewer/test_outputs/downloaded_pdfs"
+    vector_db_path = "/home/christian/literature-reviewer/test_outputs/chroma_db"
 
     
     """
@@ -429,6 +429,17 @@ if __name__ == "__main__":
             pdf_download_path=pdf_download_path,
             chromadb_path=vector_db_path,
         ),
+        "analyze_clusters": ClusterAnalyzer(
+            model_interface=model_interface,
+            user_goals_text=user_goals_text,
+            max_clusters_to_analyze=999,
+            num_keywords_per_cluster=12,
+            num_chunks_per_cluster=12,
+            reduced_dimensions=120,
+            dimensionality_reduction_method="PCA",
+            clustering_method="HDBSCAN",
+            chromadb_path=vector_db_path,
+        )
     }
     
     system_prompts = {
@@ -446,11 +457,11 @@ if __name__ == "__main__":
         system_prompts=system_prompts,
         tools=tools,
         verbose=True,
-        max_plan_steps=2,
+        max_plan_steps=3,
         ascii_art = challenged_ascii_art
     )
     
-    result = agent.run(max_iterations=10)
+    result = agent.run(max_iterations=3)
 
     print_ascii_art(ascii_art=complete_ascii_art)
     

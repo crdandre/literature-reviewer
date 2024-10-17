@@ -21,7 +21,7 @@ from collections import defaultdict
 from sklearn.feature_extraction.text import TfidfVectorizer
 import numpy as np
 
-from literature_reviewer.components.database_operations.chroma_operations import get_full_chromadb_collection
+from literature_reviewer.tools.components.database_operations.chroma_operations import get_full_chromadb_collection
 
 
 class VectorDBClusteringTool:
