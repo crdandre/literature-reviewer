@@ -9,111 +9,38 @@ Some ideas:
 3. Before using a meta-agent, the user is the meta-agent. Start here.
 """
 
-
-
-
-
-
-
-
 #nonsense
 from typing import TypedDict, List
-from langgraph.graph import StateGraph, END, START
-from literature_reviewer.agents.agency import Agency
+from langgraph.graph import StateGraph, END
+
 from literature_reviewer.agents.agent import Agent
 from literature_reviewer.agents.components.model_call import ModelInterface
 from literature_reviewer.agents.components.frameworks_and_models import PromptFramework, Model
+from literature_reviewer.agents.components.agent_pydantic_models import AgentTask
+from literature_reviewer.tools.examples.example_tools import WriteTool, SearchTool
 from literature_reviewer.agents.components.prompts.general_agent_system_prompts import (
     general_agent_planning_sys_prompt,
     general_agent_output_review_sys_prompt,
     general_agent_plan_revision_sys_prompt,
     general_agent_output_revision_sys_prompt,
 )
-from literature_reviewer.agents.personas.squilliam_fancyson import challenged_ascii_art
-from literature_reviewer.tools.examples.example_tools import WriteTool, SearchTool
-from literature_reviewer.agents.components.agent_pydantic_models import AgentTask
-import json
-
-def create_state_typed_dict(agencies):
-    """
-    Creates a TypedDict 'State' where keys are agency names and values are List[str].
-    """
-    fields = {agency.name: List[str] for agency in agencies}
-    return TypedDict('State', fields, total=False)
 
 # Define the state structure
-class AgencyState(TypedDict):
+class State(TypedDict):
     messages: List[str]
-    current_agency: str
-    agencies: dict
+    current_agent: str
 
-# Create the graph
-def create_agency_graph(agencies: List[Agency], agency_task: AgentTask) -> StateGraph:
-    # Create the State subclass
-    State = create_state_typed_dict(agencies)
-
-    # Initialize the state
-    state = State()
-
-    # Register the agencies with the state
-    for agency in agencies:
-        agency.register(state)
-
-    # Define the graph
+def create_agent_graph():
+    # Initialize the graph
     graph = StateGraph(State)
 
-    # Dictionary to map agency names to node names
-    agency_nodes = {}
-
-    # Add nodes dynamically for each agency
-    for agency in agencies:
-        node_name = f"{agency.name}_node"
-        agency_nodes[agency.name] = node_name
-        graph.add_node(node_name, lambda state, agency=agency: agency.run(state=state))
-
-    # Define the routing function
-    def routing_function(state):
-        if state.get("messages", []):
-            last_message = state["messages"][-1]
-            try:
-                last_message_json = json.loads(last_message)
-                next_agency = last_message_json.get("next_agency")
-                next_agency_node = agency_nodes.get(next_agency, END)
-            except json.JSONDecodeError:
-                next_agency_node = END
-        else:
-            next_agency_node = agency_nodes[agencies[0].name]  # Start with the first agency
-        return next_agency_node
-
-    # Edge from START to first agency node
-    graph.add_edge(START, agency_nodes[agencies[0].name])
-
-    # Conditional edge from each agency node to next agency
-    for agency in agencies:
-        graph.add_conditional_edges(
-            agency_nodes[agency.name],
-            routing_function
-        )
-
-    return graph, state
-
-# Initialize agents and agencies
-def initialize_agencies():
+    # Create a simple model interface
     model_interface = ModelInterface(
         prompt_framework=PromptFramework.OAI_API,
         model=Model("gpt-4o-mini", "OpenAI"),
     )
 
-    agency_task = AgentTask(
-        action="build an understanding of the growth modulating treatments for adolescent idiopathic scoliosis and the computational modeling efforts made in this area. report back on future research directions. Find and use appropriate reference material, then write an essay using it",
-        desired_result="a short scientific overview of scoliosis treatment via growth modulation and associated computational modeling techniques",
-    )
-
-    squilliam_tools = {
-        "search": SearchTool(model_interface=model_interface),
-        "write": WriteTool(model_interface=model_interface),
-    }
-
+    # Define system prompts
     system_prompts = {
         "planning": general_agent_planning_sys_prompt,
         "review": general_agent_output_review_sys_prompt,
@@ -121,80 +48,66 @@ def initialize_agencies():
         "revise_output": general_agent_output_revision_sys_prompt,
     }
 
-    planner = Agent(
-        name="Resource Allocator Steve",
-        task=agency_task,
-        prior_context="",
-        model_interface=model_interface,
-        system_prompts={
-            "planning": lambda *args, **kwargs: "devise the best plan for the two worker agents (working on same task in parallel) in 3 or less steps for each agent. they will both receive the same plan",
-            "review": lambda *args, **kwargs: "ensure your plan result is concise and captures the essence of the user task for the agency",
-            "revise_plan": lambda *args, **kwargs: "revise the steps that led to this plan",
-            "revise_output": lambda *args, **kwargs: "revise the output of the plan for correctness and clarity"
-        },
-        tools={"write": WriteTool(model_interface=model_interface)},
-        verbose=True,
-        max_plan_steps=3,
-        ascii_art="I AM STEVE :)"
-    )
-
-    worker = Agent(
-        name="Squilliam Fancyson",
-        task=agency_task,
-        prior_context="",
+    # Create agents
+    researcher = Agent(
+        name="Researcher",
+        task=AgentTask(action="Research the given topic", desired_result="Comprehensive research findings"),
+        prior_context="You are a diligent researcher tasked with gathering information.",
         model_interface=model_interface,
         system_prompts=system_prompts,
-        tools=squilliam_tools,
+        tools={"search": SearchTool(model_interface=model_interface)},
         verbose=True,
-        max_plan_steps=3,
-        ascii_art=challenged_ascii_art
+        max_plan_steps=5,
+        ascii_art=None,
     )
 
-    aggregator = Agent(
-        name="Output Aggregator Pichael",
-        task=agency_task,
-        prior_context="",
+    writer = Agent(
+        name="Writer",
+        task=AgentTask(action="Write a summary based on research", desired_result="Well-written summary"),
+        prior_context="You are a skilled writer tasked with summarizing research findings.",
         model_interface=model_interface,
-        system_prompts={
-            "planning": lambda *args, **kwargs: "plan the best way to aggregate the result of the prior agents' work in 3 or less steps",
-            "review": lambda *args, **kwargs: "ensure your aggregation result is concise and captures the result of the prior agents' work",
-            "revise_plan": lambda *args, **kwargs: "revise the steps that led to this aggregation",
-            "revise_output": lambda *args, **kwargs: "revise the output of the aggregation for correctness and clarity"
-        },
+        system_prompts=system_prompts,
         tools={"write": WriteTool(model_interface=model_interface)},
         verbose=True,
-        max_plan_steps=3,
-        ascii_art="AAAAGGGGGGGRRREEEEEGGGAAATTTEEEE"
+        max_plan_steps=5,
+        ascii_art=None,
     )
 
-    agency_agents = [planner, [worker, worker], aggregator]
+    # Add nodes for each agent
+    graph.add_node("research", lambda state: researcher.run(max_iterations=3))
+    graph.add_node("write", lambda state: writer.run(max_iterations=3))
 
-    agency = Agency(
-        name="The Squids",
-        agents=agency_agents,
-        task=agency_task
-    )
+    # Define the routing function
+    def router(state):
+        if state["current_agent"] == "Researcher":
+            return "write"
+        elif state["current_agent"] == "Writer":
+            return END
+        else:
+            return "research"
 
-    return [agency]
+    # Add edges
+    graph.add_edge("research", "write")
+    graph.add_edge("write", END)
 
-# Main execution
+    # Set the entry point
+    graph.set_entry_point("research")
+
+    return graph
+
 def main():
-    agencies = initialize_agencies()
-    agency_task = AgentTask(
-        action="build an understanding of the growth modulating treatments for adolescent idiopathic scoliosis and the computational modeling efforts made in this area. report back on future research directions. Find and use appropriate reference material, then write an essay using it",
-        desired_result="a short scientific overview of scoliosis treatment via growth modulation and associated computational modeling techniques",
-    )
-    graph, initial_state = create_agency_graph(agencies, agency_task)
-
-    # Compile the workflow
+    graph = create_agent_graph()
     workflow = graph.compile()
 
-    # Run the workflow
+    initial_state = State(
+        messages=[],
+        current_agent="Researcher"
+    )
+
     for output in workflow.stream(initial_state):
-        if output.get('final_output'):
-            print("Final output:", output['final_output'])
+        if output['current_agent'] == END:
+            print("Final output:", output['messages'][-1])
             break
 
 if __name__ == "__main__":
     main()
-

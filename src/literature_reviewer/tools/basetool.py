@@ -3,15 +3,29 @@ Base Class for Tools
 All tools must adhere to this interface
 """
 from abc import ABC, abstractmethod
-from literature_reviewer.agents.components.model_call import ModelInterface
 from typing import Any
 from pydantic import BaseModel
 from pydantic_core import CoreSchema, core_schema
+from rich.console import Group
+from rich.text import Text
+from literature_reviewer.agents.components.model_call import ModelInterface
+
 
 class ToolResponse(BaseModel):
     output: str
     explanation: str
 
+    def as_rich(self) -> Group:
+        content = Group(
+            Text("Output:", style="bold"),
+            Text(self.output.strip(), style="green"),
+        )
+        if self.explanation:
+            content.renderables.append(Text("\nExplanation:", style="italic"))
+            content.renderables.append(Text(self.explanation.strip(), style="yellow"))
+        return content
+    
+    
 class BaseTool(ABC):
     def __init__(
         self,

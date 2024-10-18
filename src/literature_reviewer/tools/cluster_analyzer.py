@@ -103,8 +103,6 @@ class ClusterAnalyzer(BaseTool):
         """
         logging.info("Starting cluster summarization...")
         system_prompt = generate_single_cluster_theme_summary_sys_prompt(self.user_goals_text)
-        chat_model = Model(self.model_name, self.model_provider)
-        chat_interface = ModelInterface(self.prompt_framework, chat_model)
 
         cluster_summaries = {}
         total_clusters = len(self.cluster_data['top_keywords_per_cluster'])
@@ -120,7 +118,7 @@ class ClusterAnalyzer(BaseTool):
             input_text = f"Keywords: {keywords_str}\n\nTop Chunks:\n{chunks_str}"
 
             # Get the summary from the LLM
-            summary = chat_interface.entry_chat_call(
+            summary = self.model_interface.chat_completion_call(
                 system_prompt=system_prompt,
                 user_prompt=input_text,
                 response_format=SingleClusterSummary
@@ -140,8 +138,6 @@ class ClusterAnalyzer(BaseTool):
         gaps, unanswered questions, and future directions.
         """
         system_prompt = generate_multi_cluster_theme_summary_sys_prompt(self.user_goals_text)
-        chat_model = Model(self.model_name, self.model_provider)
-        chat_interface = ModelInterface(self.prompt_framework, chat_model)
 
         # Prepare the input for the LLM
         cluster_summaries_str = "\n\n".join([
@@ -151,7 +147,7 @@ class ClusterAnalyzer(BaseTool):
         input_text = f"Cluster Summaries:\n{cluster_summaries_str}"
 
         # Get the multi-cluster summary from the LLM
-        multi_cluster_summary = chat_interface.entry_chat_call(
+        multi_cluster_summary = self.model_interface.chat_completion_call(
             system_prompt=system_prompt,
             user_prompt=input_text,
             response_format=MultiClusterSummary

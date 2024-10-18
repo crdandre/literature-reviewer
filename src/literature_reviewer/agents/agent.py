@@ -41,13 +41,14 @@ from literature_reviewer.agents.components.agent_pydantic_models import (
     AgentProcessOutput,
     AgentOutputRevision,
     ConversationHistoryEntry,
-    ConversationHistoryEntryList
+    ConversationHistoryEntryList,
+    ToolResponse
 )
 from literature_reviewer.agents.components.memory import (
     LoadingAnimation, run_with_loading, add_to_conversation_history
 )
 from literature_reviewer.agents.components.printout import print_ascii_art
-from literature_reviewer.tools.basetool import BaseTool, ToolResponse
+from literature_reviewer.tools.basetool import BaseTool
 
 
 class Agent:
@@ -85,7 +86,7 @@ class Agent:
         prior_context: str,
         model_interface: ModelInterface,
         system_prompts,
-        tools: Dict[str, BaseTool],
+        tools: Dict[str, BaseTool] | None,
         verbose,
         max_plan_steps=10,
         ascii_art=None,
@@ -153,13 +154,12 @@ class Agent:
         """
         results = PlanStepResultList(plan_steps=[])
         accumulated_context = ""
-        step_outputs = {}  # Store outputs of each step
+        step_outputs = {}
 
         for step in plan.steps:
             step_prompt = f"{accumulated_context}\n\nCurrent step: {step.prompt}"
             
-            if step.tool_name is None or step.tool_name not in self.tools:
-                # Handle steps without a tool or with an unknown tool
+            if self.tools is None or step.tool_name is None or step.tool_name not in self.tools:
                 result_json = self.model_interface.chat_completion_call(
                     system_prompt="You are a helpful assistant executing a task. Provide the result and a brief explanation.",
                     user_prompt=f"{step_prompt}\n\nRespond in ToolResponse format with 'output' and 'explanation' fields.",
@@ -186,6 +186,7 @@ class Agent:
                     self.logger.error(f"Error executing step '{step}' with tool '{step.tool_name}': {str(e)}")
                     continue
             
+            # Pass the ToolResponse object directly
             step_result = PlanStepResult(plan_step=step, result=output)
             results.plan_steps.append(step_result)
             
@@ -347,10 +348,10 @@ class Agent:
     def _extract_final_output(self, output):
         if isinstance(output, PlanStepResultList) and output.plan_steps:
             last_step = output.plan_steps[-1]
-            return str(last_step.result.output)
+            return last_step.result.output
         elif isinstance(output, str):
             return output
-        return "No output generated"
+        return json.dumps({"error": "No output generated"})
     
     
         
@@ -375,9 +376,14 @@ if __name__ == "__main__":
     from literature_reviewer.tools.corpus_gatherer import CorpusGatherer
     from literature_reviewer.tools.cluster_analyzer import ClusterAnalyzer
 
+    # agent_task = AgentTask(
+    #     action="generate a list of queries using generate_queries, then gather a related corpus using gather_corpus, then cluster the embedded corpus, and analyze the clusters, outputting a summary of them using analyze_clusters",
+    #     desired_result="a list of queries and an explanation for them, then a list of papers (part of a gathered corpus) found to correspond to each query, finally a summary of the clusters obtained from the embedded text",
+    # )
+    
     agent_task = AgentTask(
-        action="generate a list of queries using generate_queries, then gather a related corpus using gather_corpus, then cluster the embedded corpus, and analyze the clusters, outputting a summary of them using analyze_clusters",
-        desired_result="a list of queries and an explanation for them, then a list of papers (part of a gathered corpus) found to correspond to each query, finally a summary of the clusters obtained from the embedded text",
+        action="cluster the embedded corpus, and analyze the clusters, outputting a summary of them using analyze_clusters",
+        desired_result="a summary of the clusters obtained from the embedded text",
     )
 
     model_interface = ModelInterface(
@@ -455,17 +461,10 @@ if __name__ == "__main__":
         system_prompts=system_prompts,
         tools=tools,
         verbose=True,
-        max_plan_steps=2,
+        max_plan_steps=1,
         ascii_art = challenged_ascii_art
     )
     
-    result = agent.run(max_iterations=3)
-
+    agent.run(max_iterations=3)
     print_ascii_art(ascii_art=complete_ascii_art)
-    
-    console = Console(file=sys.stderr)
-    output_text = Text(result.final_output)
-    output_panel = Panel(output_text, title="Final Output", border_style="bold cyan", expand=False)
-    console.print(output_panel)
-
 

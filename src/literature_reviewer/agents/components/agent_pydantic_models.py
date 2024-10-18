@@ -6,6 +6,7 @@ from rich.text import Text
 from rich.table import Table
 from rich.markdown import Markdown
 from literature_reviewer.tools.basetool import ToolResponse
+import json
 
 
 class AgentPlanStep(BaseModel):
@@ -131,11 +132,26 @@ class AgentProcessOutput(BaseModel):
             Text("\nFinal Plan:", style="italic"),
             Text(self.final_plan, style="bold green"),
             Text("\nFinal Output:", style="italic"),
-            Text(self.final_output, style="bold yellow"),
+            self._format_final_output(),
         ]
         if self.final_review:
             content.append(Text("\nFinal Review:\n", style="italic") + Text(self.final_review, style="magenta"))
         return Group(*content)
+
+    def _format_final_output(self) -> Group:
+        try:
+            output_dict = json.loads(self.final_output)
+            formatted_content = Group()
+            for key, value in output_dict.items():
+                formatted_content.renderables.append(Text(f"\n{key.replace('_', ' ').title()}:", style="bold"))
+                if isinstance(value, list):
+                    for item in value:
+                        formatted_content.renderables.append(Text(f"• {item}", style="cyan"))
+                else:
+                    formatted_content.renderables.append(Text(value, style="cyan"))
+            return formatted_content
+        except json.JSONDecodeError:
+            return Markdown(self.final_output)
 
 
 class AgentRevisionTask(BaseModel):
@@ -207,3 +223,5 @@ class ConversationHistoryEntryList(BaseModel):
     def as_rich(self) -> Panel:
         content = Group(*[entry.as_rich() for entry in self.entries])
         return Panel(content, title="Conversation History", border_style="cyan")
+
+

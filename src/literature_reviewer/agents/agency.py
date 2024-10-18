@@ -115,10 +115,7 @@ class Agency:
         
 
 if __name__ == "__main__":
-    import json
     from literature_reviewer.agents.components.model_call import ModelInterface
-    from literature_reviewer.tools.basetool import BaseTool, ToolResponse
-
     from literature_reviewer.agents.components.agent_pydantic_models import *
     from dotenv import load_dotenv
     load_dotenv()
@@ -131,11 +128,13 @@ if __name__ == "__main__":
         general_agent_plan_revision_sys_prompt,
         general_agent_output_revision_sys_prompt,
     )
-    from literature_reviewer.tools.basetool import BaseTool
     from literature_reviewer.agents.personas.squilliam_fancyson import (
         challenged_ascii_art
     )
     from literature_reviewer.agents.agent import Agent
+    from literature_reviewer.tools.research_query_generator import ResearchQueryGenerator
+    from literature_reviewer.tools.corpus_gatherer import CorpusGatherer
+    from literature_reviewer.tools.cluster_analyzer import ClusterAnalyzer
     
     max_agent_iterations = 5
     
@@ -148,67 +147,45 @@ if __name__ == "__main__":
         prompt_framework=PromptFramework.OAI_API,
         model=Model("gpt-4o-mini","OpenAI"),
     )
+
+    with open("/home/christian/literature-reviewer/user_inputs/goal_prompt_ais.txt", "r") as file:
+        user_goals_text = file.read()
+    user_supplied_pdfs_directory = "/home/christian/literature-reviewer/user_inputs/user_supplied_pdfs"
+    num_vec_db_queries = 3
+    vec_db_query_num_results = 2
+    num_s2_queries = 2
     
-    # Example tools   
-    class SearchTool(BaseTool):
-        """
-        A tool for searching academic literature and retrieving relevant papers.
-        This tool interfaces with academic databases to find peer-reviewed articles
-        based on given search queries. It's particularly useful for tasks that require
-        finding supporting evidence, background information, or specific research in
-        academic fields. The tool can handle complex search queries and return
-        summaries or citations of relevant papers.
-        """
-        def __init__(self, model_interface: ModelInterface):
-            super().__init__(
-                name="SEARCHER",
-                description="Searches for academic papers",
-                model_interface=model_interface
-            )
-
-        def use(self, step: AgentPlanStep) -> str:
-            system_prompt = "You are a helpful academic search assistant."
-            user_prompt = f"Please search for relevant academic papers based on the following query: {step.prompt}. Output the papers to output and any required explanation to explanation"
-            output = self.model_interface.chat_completion_call(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                response_format=ToolResponse,
-            )
-            return ToolResponse(**json.loads(output))
-
-    class WriteTool(BaseTool):
-        """
-        A tool for writing creative poetry based on given prompts or themes.
-        This tool utilizes natural language processing capabilities to generate
-        original poems in various styles and formats. It can incorporate specific
-        themes, emotions, or references provided in the prompt. The WriteTool is
-        particularly useful for tasks that require creative writing, especially
-        in poetic form, and can be used to create poems that reflect or incorporate
-        academic concepts or findings when combined with other research tools.
-        """
-        def __init__(self, model_interface: ModelInterface):
-            super().__init__(
-                name="WRITER",
-                description="Writes poetry",
-                model_interface=model_interface
-            )
-
-        def use(self, step: AgentPlanStep) -> ToolResponse:
-            system_prompt = "You are an author of many skills."
-            user_prompt = f"Please write the type of content requested by the user based on the following prompt: {step.prompt}. Use the references provided, but only output the content itself as a single string in the output field, and if there are any citations or explanations necessary, fill those in the explanations field."
-            output = self.model_interface.chat_completion_call(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                response_format=ToolResponse,
-            )
-            return ToolResponse(**json.loads(output))
+    pdf_download_path = "/home/christian/literature-reviewer/test_outputs/downloaded_pdfs"
+    vector_db_path = "/home/christian/literature-reviewer/test_outputs/chroma_db"
 
 
-
-
-    squilliam_tools = {
-        "search": SearchTool(model_interface=model_interface),
-        "write": WriteTool(model_interface=model_interface),
+    tools = {
+        "generate_queries": ResearchQueryGenerator(
+            user_goals_text=user_goals_text,
+            user_supplied_pdfs_directory=user_supplied_pdfs_directory,
+            model_interface=model_interface,
+            num_vec_db_queries=num_vec_db_queries,
+            vec_db_query_num_results=vec_db_query_num_results,
+            num_s2_queries=num_s2_queries,
+        ),
+        "gather_corpus": CorpusGatherer(
+            search_queries=None,  # This will be updated dynamically
+            user_goals_text=user_goals_text,
+            model_interface=model_interface,
+            pdf_download_path=pdf_download_path,
+            chromadb_path=vector_db_path,
+        ),
+        "analyze_clusters": ClusterAnalyzer(
+            model_interface=model_interface,
+            user_goals_text=user_goals_text,
+            max_clusters_to_analyze=999,
+            num_keywords_per_cluster=12,
+            num_chunks_per_cluster=12,
+            reduced_dimensions=120,
+            dimensionality_reduction_method="PCA",
+            clustering_method="HDBSCAN",
+            chromadb_path=vector_db_path,
+        )
     }
     system_prompts = {
         "planning": general_agent_planning_sys_prompt,
@@ -228,7 +205,7 @@ if __name__ == "__main__":
             "revise_plan": lambda *args, **kwargs: "revise the steps that led to this plan",
             "revise_output": lambda *args, **kwargs: "revise the output of the plan for correctness and clarity"
         },
-        tools={"write": WriteTool(model_interface=model_interface)}, #<--makes up tools if none??????? TODO: check this out
+        tools=None,
         verbose=True,
         max_plan_steps=3,
         ascii_art = "HI :)"
@@ -240,7 +217,7 @@ if __name__ == "__main__":
         prior_context="",
         model_interface=model_interface,
         system_prompts=system_prompts,
-        tools=squilliam_tools,
+        tools=tools,
         verbose=True,
         max_plan_steps=3,
         ascii_art = challenged_ascii_art
@@ -257,7 +234,7 @@ if __name__ == "__main__":
             "revise_plan": lambda *args, **kwargs: "revise the steps that led to this aggregation",
             "revise_output": lambda *args, **kwargs: "revise the output of the aggregation for correctness and clarity"
         },
-        tools={"write": WriteTool(model_interface=model_interface)}, #<--makes up tools if none??????? TODO: check this out
+        tools=None,
         verbose=True,
         max_plan_steps=3,
         ascii_art = "AAAAGGGGGGGRRREEEEEGGGAAATTTEEEE"
