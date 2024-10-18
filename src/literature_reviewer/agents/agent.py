@@ -390,7 +390,7 @@ if __name__ == "__main__":
     user_supplied_pdfs_directory = "/home/christian/literature-reviewer/user_inputs/user_supplied_pdfs"
     num_vec_db_queries = 3
     vec_db_query_num_results = 2
-    num_s2_queries = 10
+    num_s2_queries = 2
     
     pdf_download_path = "/home/christian/literature-reviewer/test_outputs/downloaded_pdfs"
     vector_db_path = "/home/christian/literature-reviewer/test_outputs/chroma_db"
@@ -412,8 +412,6 @@ if __name__ == "__main__":
     logging within tools would be nice too to see what's going on with things like paper inclusion
     """
     tools = {
-        # "search": SearchTool(model_interface=model_interface),
-        # "write": WriteTool(model_interface=model_interface),
         "generate_queries": ResearchQueryGenerator(
             user_goals_text=user_goals_text,
             user_supplied_pdfs_directory=user_supplied_pdfs_directory,
@@ -457,7 +455,7 @@ if __name__ == "__main__":
         system_prompts=system_prompts,
         tools=tools,
         verbose=True,
-        max_plan_steps=3,
+        max_plan_steps=2,
         ascii_art = challenged_ascii_art
     )
     

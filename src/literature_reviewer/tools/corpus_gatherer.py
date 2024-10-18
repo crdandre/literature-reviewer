@@ -284,7 +284,7 @@ class CorpusGatherer(BaseTool):
         approved_paper_ids, excluded_paper_ids = self.evaluate_formatted_s2_results(
             results=formatted_search_results_with_text,
         )
-        # self.delete_excluded_papers(ids_to_delete=excluded_paper_ids)
+        self.delete_excluded_papers(ids_to_delete=excluded_paper_ids)
         self.embed_approved_search_results(approved_paper_ids=approved_paper_ids, all_chunks_with_ids=all_chunks_with_ids)
         return approved_paper_ids
 
@@ -295,16 +295,15 @@ if __name__ == "__main__":
     load_dotenv(override=True)
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     
-    pdf_download_path = "/home/christian/literature-reviewer/framework_outputs/gpt4o_mini_mechanobiology_lg_embedding_more_pdfs_20240930_031238/downloaded_pdfs"
+    pdf_download_path = "/home/christian/literature-reviewer/test_outputs/downloaded_pdfs"
     model_interface = ModelInterface(
         prompt_framework=PromptFramework.OAI_API,
         model=Model("gpt-4o-mini","OpenAI"),
     )    
-    vector_db_path = "/home/christian/literature-reviewer/framework_outputs/gpt4o_mini_mechanobiology_lg_embedding_more_pdfs_20240930_031238/chroma_db"
+    vector_db_path = "/home/christian/literature-reviewer/test_outputs/chroma_db"
 
     logging.info(f"PDF_DOWNLOAD_PATH: {pdf_download_path}")
     logging.info(f"CHROMA_DB_PATH: {vector_db_path}")
-    logging.info(f"DEFAULT_PROMPT_FRAMEWORK: {os.getenv('DEFAULT_PROMPT_FRAMEWORK')}")
     
     with open("/home/christian/literature-reviewer/user_inputs/goal_prompt.txt", "r") as file:
         user_goals_text = file.read()

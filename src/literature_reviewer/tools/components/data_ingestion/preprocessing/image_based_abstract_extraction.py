@@ -1,10 +1,5 @@
 import base64, io, json
-from pdf2image import convert_from_path, convert_from_bytes
-from pdf2image.exceptions import (
-    PDFInfoNotInstalledError,
-    PDFPageCountError,
-    PDFSyntaxError
-)
+from pdf2image import convert_from_path
 from literature_reviewer.agents.components.model_call import ModelInterface
 from literature_reviewer.agents.components.frameworks_and_models import PromptFramework, Model
 from literature_reviewer.tools.components.input_output_models.response_formats import AbstractExtractionResponse
@@ -12,7 +7,10 @@ from literature_reviewer.tools.components.prompts.literature_search_query import
 
 
 def extract_abstract_from_pdf(pdf_path: str, model_interface: ModelInterface, page_limit: int=2) -> str | None:
-    images = convert_from_path(pdf_path)
+    try:
+        images = convert_from_path(pdf_path)
+    except Exception as e:
+        return f"Warning: Unable to convert PDF to images. Error: {str(e)}"
     
     abstract = ""
     full_abstract_found = False
@@ -51,5 +49,6 @@ if __name__ == "__main__":
     abstract = extract_abstract_from_pdf(pdf_path, model_interface)
     print("Extracted Abstract:")
     print(abstract)
+
 
 
