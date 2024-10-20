@@ -109,6 +109,10 @@ Temporarily, I'm using langchain/chroma db because YT shows this repeatedly and 
 - Systematic review publication exclution diagram generation! Important.
 - Grabbing relevant figures from the best papers.
 
+NEW
+- Standardized way to make non OAI models adhere to schema
+- generic state for langgraph
+
 ---
 # Digested To-Do From Above
 ## Overall

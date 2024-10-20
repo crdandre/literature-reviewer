@@ -153,6 +153,25 @@ class AgentProcessOutput(BaseModel):
         except json.JSONDecodeError:
             return Markdown(self.final_output)
 
+    def as_string(self) -> str:
+        output = f"""
+Task:
+Action: {self.task.action}
+Desired Result: {self.task.desired_result}
+
+Iterations: {self.iterations}
+
+Final Plan:
+{self.final_plan}
+
+Final Output:
+{self.final_output}
+
+Final Review:
+{self.final_review or 'No review provided'}
+"""
+        return output.strip()
+
 
 class AgentRevisionTask(BaseModel):
     task: str
@@ -223,5 +242,6 @@ class ConversationHistoryEntryList(BaseModel):
     def as_rich(self) -> Panel:
         content = Group(*[entry.as_rich() for entry in self.entries])
         return Panel(content, title="Conversation History", border_style="cyan")
+
 
 

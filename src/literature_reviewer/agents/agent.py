@@ -26,10 +26,6 @@ import json, logging, sys
 from datetime import datetime, timezone
 from typing import Dict
 
-from rich.console import Console
-from rich.panel import Panel
-from rich.text import Text
-
 from literature_reviewer.agents.components.model_call import ModelInterface
 from literature_reviewer.agents.components.agent_pydantic_models import (
     AgentPlan,
@@ -338,10 +334,10 @@ class Agent:
                 final_plan=plan.as_formatted_text(),
                 final_output=final_output,
                 final_review=final_review
-            )
+            ).model_dump()
+
         finally:
             self.loading_animation.stop()
-            sys.stdout.write('\rDone!     \n')
             sys.stdout.flush()
 
 

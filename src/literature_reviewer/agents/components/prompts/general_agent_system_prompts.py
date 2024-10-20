@@ -189,3 +189,10 @@ def general_agent_output_revision_sys_prompt(original_output) -> str:
 
     Ensure your response can be parsed into the AgentOutputRevision format.
     """
+    
+general_agent_system_prompts = {
+    "planning": general_agent_planning_sys_prompt,
+    "review": general_agent_output_review_sys_prompt,
+    "revise_plan": general_agent_plan_revision_sys_prompt,
+    "revise_output": general_agent_output_revision_sys_prompt,
+}
