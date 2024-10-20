@@ -8,9 +8,8 @@ Some ideas:
 2. O1 maybe is well-suited to be the meta-agent and relay which tools can be arranged how
 3. Before using a meta-agent, the user is the meta-agent. Start here.
 """
-
-#nonsense
-from typing import TypedDict, List, Callable
+from typing import TypedDict, List, Dict, Any
+from pydantic import Field
 from langchain_core.documents import Document
 from langgraph.graph import StateGraph, END, START
 from literature_reviewer.agents.agent import Agent
@@ -19,54 +18,86 @@ from literature_reviewer.tools.basetool import BaseTool
 from datetime import datetime, timezone
 import json
 
+MAX_ITERATIONS = 3
+
+def generate_triage_output_schema(agent_names: List[str]):
+    return {name: str for name in agent_names if name != "Triage"}
+
 def initialize_graph_state(nodes):
     fields = {node.name: List[Document] for node in nodes}
     return TypedDict('State', fields, total=False)
 
-def build_graph(nodes, requirements):
+def build_graph(nodes):
     # Create the State using the initialize_graph_state function
     State = initialize_graph_state(nodes)
-
+    state = State()
+    
     # Initialize the graph with the State
     graph = StateGraph(State)
 
     # Dictionary to map node names to node functions
     node_functions = {}
 
+    # Generate the dynamic schema for Triage output
+    triage_output_schema = generate_triage_output_schema([node.name for node in nodes])
+
+    # Generate the list of available agents once
+    available_agents = [node.name for node in nodes if node.name != "Triage"]
+
+    # Find the Triage agent and set its attributes
+    triage_agent = next((node for node in nodes if node.name == "Triage"), None)
+    if triage_agent:
+        triage_agent.set_triage_attributes(available_agents, triage_output_schema)
+    else:
+        raise ValueError("Triage agent not found in the nodes list")
+
     # Add nodes dynamically for each node (Agency, Agent, or Tool)
     for node in nodes:
         node_name = f"{node.name}_node"
         if isinstance(node, (Agent, Agency, BaseTool)):
-            node_functions[node.name] = lambda state, node=node: {
-                node.name: state[node.name] + [Document(
-                    page_content=json.dumps(node.run(max_iterations=3)),
-                    metadata={
-                        "node_name": node.name,
-                        "timestamp": datetime.now(timezone.utc).isoformat()
+            def create_node_function(node):
+                def node_function(state):
+                    serialized_state = serialize_state(state)
+                    result = node.run(max_iterations=MAX_ITERATIONS, state=json.dumps(serialized_state))
+                    
+                    # Update task for non-Triage agents based on Triage output
+                    if node.name != "Triage" and state.get("Triage"):
+                        triage_output = json.loads(state["Triage"][-1].page_content)
+                        if node.name in triage_output:
+                            node.task = triage_output[node.name]
+                    
+                    return {
+                        node.name: state[node.name] + [Document(
+                            page_content=json.dumps(result),
+                            metadata={
+                                "node_name": node.name,
+                                "timestamp": datetime.now(timezone.utc).isoformat()
+                            }
+                        )]
                     }
-                )]
-            }
+                return node_function
+            
+            node_functions[node.name] = create_node_function(node)
         else:
             raise ValueError(f"Unsupported node type: {type(node)}")
         
         graph.add_node(node_name, node_functions[node.name])
 
+    # Identify the Triage agent
+    triage_agent = next((node for node in nodes if node.name == "Triage"), None)
+    if not triage_agent:
+        raise ValueError("Triage agent not found in the nodes list")
+
     # Add edges
-    graph.add_edge(START, f"{nodes[0].name}_node")
-    for i in range(len(nodes) - 1):
-        graph.add_edge(
-            f"{nodes[i].name}_node",
-            f"{nodes[i+1].name}_node",
-            # lambda state: {
-            #     'input_documents': state[nodes[i].name],
-            #     'previous_node_metadata': state[nodes[i].name][-1].metadata if state[nodes[i].name] else {}
-            # }
-        )
+    graph.add_edge(START, f"{triage_agent.name}_node")
+    for node in nodes:
+        if node.name != "Triage":
+            graph.add_edge(f"{triage_agent.name}_node", f"{node.name}_node")
 
     # Define the routing function
     def routing_function(state):
-        # The last node in the sequence
-        if state.get(nodes[-1].name):
+        # Check if all nodes have been executed
+        if all(state.get(node.name) for node in nodes):
             return END
         # Find the next node that hasn't been executed yet
         for node in nodes:
@@ -75,98 +106,103 @@ def build_graph(nodes, requirements):
         # If all nodes have been executed, end the graph
         return END
 
-    # Add conditional edge from the last node
-    graph.add_conditional_edges(
-        f"{nodes[-1].name}_node",
-        routing_function
-    )
+    # Add conditional edges from all non-Triage nodes
+    for node in nodes:
+        if node.name != "Triage":
+            graph.add_conditional_edges(
+                f"{node.name}_node",
+                routing_function
+            )
 
     return graph, State
 
-# Add this new function
-def print_state_update(state):
-    print("\n--- State Update ---")
-    if not state:
-        print("State is empty")
+
+def serialize_document(doc):
+    return {
+        "metadata": doc.metadata,
+        "page_content": doc.page_content
+    }
+
+def serialize_state(state):
+    if isinstance(state, dict):
+        return {k: serialize_state(v) for k, v in state.items()}
+    elif isinstance(state, list):
+        return [serialize_state(item) for item in state]
+    elif hasattr(state, '__dict__'):
+        return serialize_state(state.__dict__)
     else:
-        for node_name, documents in state.items():
-            print(f"{node_name}:")
-            if documents:
-                for doc in documents:
-                    try:
-                        print(f"  Page Content: {doc.page_content}")
-                        print(f"  Metadata: {doc.metadata}")
-                    except:
-                        print("DOC", doc)
-            else:
-                print("  No documents")
-    print("--------------------\n")
+        return state
 
 if __name__ == "__main__":
     from literature_reviewer.agents.components.model_call import ModelInterface
     from literature_reviewer.agents.components.frameworks_and_models import PromptFramework, Model
-    from literature_reviewer.agents.components.agent_pydantic_models import AgentTask
     from literature_reviewer.agents.components.prompts.general_agent_system_prompts import general_agent_system_prompts
-    
+    from literature_reviewer.agents.components.prompts.triage_agent_system_prompts import triage_agent_system_prompts
+
     # Create a simple model interface
     model_interface = ModelInterface(
         prompt_framework=PromptFramework.OAI_API,
         model=Model("gpt-4o-mini", "OpenAI"),
     )
     
-    # Create agents
+    context = "write a bit about tardigrades."
+    MAX_PLAN_STEPS = 3
+    
+    # Create the Triage agent
+    triage = Agent(
+        name="Triage",
+        task="Develop tasks for the Researcher and Writer agents based on the given context.",
+        state=context,
+        model_interface=model_interface,
+        system_prompts=triage_agent_system_prompts,
+        tools=None,
+        verbose=True,
+        max_plan_steps=MAX_PLAN_STEPS,
+        ascii_art=None,
+    )
+
+    # Modify the researcher and writer agents to accept tasks from Triage
     researcher = Agent(
         name="Researcher",
-        task=AgentTask(action="Research the given topic", desired_result="Comprehensive research findings"),
-        prior_context="You are a diligent researcher tasked with gathering information.",
+        task="",
+        state=context,
         model_interface=model_interface,
         system_prompts=general_agent_system_prompts,
         tools=None,
         verbose=True,
-        max_plan_steps=5,
+        max_plan_steps=MAX_PLAN_STEPS,
         ascii_art=None,
     )
 
     writer = Agent(
         name="Writer",
-        task=AgentTask(action="Write a summary based on research", desired_result="Well-written summary"),
-        prior_context="You are a skilled writer tasked with summarizing research findings.",
+        task="",
+        state=context,
         model_interface=model_interface,
         system_prompts=general_agent_system_prompts,
         tools=None,
         verbose=True,
-        max_plan_steps=5,
+        max_plan_steps=MAX_PLAN_STEPS,
         ascii_art=None,
     )
 
-    nodes = [researcher, writer]
-    requirements = "write a bit about tardigrades."
+    nodes = [triage, researcher, writer]
+    verbose = False
 
-    graph, State = build_graph(nodes, requirements)
+    graph, State = build_graph(nodes)
     workflow = graph.compile()
 
     initial_state = State(
+        Triage=[],
         Researcher=[],
         Writer=[]
     )
 
     print("Starting graph execution...")
 
-    # Execute the workflow and get the final state
-    for output in workflow.stream(initial_state):
-        print_state_update(output)
-
-    final_state = output
-
-    print("\n--- Final State ---")
-    for node_name, documents in final_state.items():
-        print(f"{node_name}:")
-        if documents:
-            latest_doc = documents[-1]
-            print(f"  Output: {latest_doc.page_content}")
-            print(f"  Metadata: {latest_doc.metadata}")
-        else:
-            print("  No documents")
-    print("--------------------\n")
+    # Execute the workflow and process each step
+    for step in workflow.stream(initial_state):
+        print(f"Step: {step}")
+        # You can add more detailed logging or processing here
 
     print("Graph execution completed.")

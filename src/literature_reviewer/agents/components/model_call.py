@@ -49,6 +49,7 @@ class ModelInterface:
         """
         Calls an LLM API using the specified prompt framework and provider.
         """
+        
         cleaned_system_prompt, cleaned_user_prompt = self._clean_prompts(
             system_prompt, user_prompt
         )

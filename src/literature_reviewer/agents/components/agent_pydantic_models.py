@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import List
+from pydantic import BaseModel, create_model, field_validator
+from typing import Any, Dict, List, Optional
 from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
@@ -50,6 +50,17 @@ class AgentPlan(BaseModel):
             formatted_text += f"  Reason: {step.reason}\n"
             formatted_text += f"  Tool: {step.tool_name or 'None'}\n"
         return formatted_text
+    
+    def as_list(self) -> List[Dict[str, str]]:
+        return [
+            {
+                "step_name": f"Step {i+1}",
+                "action": step.step,
+                "reason": step.reason,
+                "tool": step.tool_name or "None"
+            }
+            for i, step in enumerate(self.steps)
+        ]
 
 
 class PlanStepResult(BaseModel):
@@ -96,33 +107,12 @@ class AgentReviewVerdict(BaseModel):
         return content
 
 
-class AgentTask(BaseModel):
-    action: str
-    desired_result: str
-    
-    def as_rich(self) -> Group:
-        return Group(
-            Text("Action:", style="italic"),
-            Text(self.action, style="cyan"),
-            Text("\nDesired Result:", style="italic"),
-            Text(self.desired_result, style="green")
-        )
-    
-    def as_xml_string(self) -> str:
-        return (
-            f"<agent_task>\n"
-            f"  <action>{self.action}</action>\n"
-            f"  <desired_result>{self.desired_result}</desired_result>\n"
-            f"</agent_task>\n"
-        )
-
-
 class AgentProcessOutput(BaseModel):
-    task: AgentTask
+    task: str
     iterations: int
-    final_plan: str
-    final_output: str
-    final_review: str | None
+    final_plan: List[dict]
+    final_output: Any
+    final_review: Optional[str] = None
     
     def as_rich(self) -> Group:
         content = [
@@ -153,24 +143,25 @@ class AgentProcessOutput(BaseModel):
         except json.JSONDecodeError:
             return Markdown(self.final_output)
 
-    def as_string(self) -> str:
-        output = f"""
-Task:
-Action: {self.task.action}
-Desired Result: {self.task.desired_result}
+    @classmethod
+    def with_dynamic_output(cls, output_schema: Dict[str, Any]):
+        DynamicOutput = create_model('DynamicOutput', **output_schema)
+        
+        class DynamicAgentProcessOutput(cls):
+            final_output: Any
 
-Iterations: {self.iterations}
+            @field_validator('final_output')
+            @classmethod
+            def validate_final_output(cls, v):
+                return DynamicOutput.model_validate(v)
 
-Final Plan:
-{self.final_plan}
+        return DynamicAgentProcessOutput
 
-Final Output:
-{self.final_output}
-
-Final Review:
-{self.final_review or 'No review provided'}
-"""
-        return output.strip()
+    def model_dump(self):
+        data = super().model_dump()
+        if isinstance(self.final_output, BaseModel):
+            data['final_output'] = self.final_output.model_dump()
+        return data
 
 
 class AgentRevisionTask(BaseModel):

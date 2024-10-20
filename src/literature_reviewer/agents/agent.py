@@ -24,16 +24,15 @@ Constraints:
 """
 import json, logging, sys
 from datetime import datetime, timezone
-from typing import Dict
+from typing import Dict, Any, Optional
+from pydantic import ValidationError, create_model
 
 from literature_reviewer.agents.components.model_call import ModelInterface
 from literature_reviewer.agents.components.agent_pydantic_models import (
     AgentPlan,
-    AgentPlan,
     PlanStepResult,
     PlanStepResultList,
     AgentReviewVerdict,
-    AgentTask,
     AgentProcessOutput,
     AgentOutputRevision,
     ConversationHistoryEntry,
@@ -53,8 +52,8 @@ class Agent:
 
     Attributes:
         name (str): The name of the agent.
-        task (AgentTask): The task assigned to the agent.
-        prior_context (str): Any prior context or information given to the agent.
+        task (str): The task assigned to the agent.
+        state (str): Any prior context or information given to the agent.
         model_interface (ModelInterface): The interface for interacting with the language model.
         system_prompts (dict): A dictionary of system prompts for different agent functions.
                                Contains "planning", "action", "review", and "revision" prompts.
@@ -66,8 +65,8 @@ class Agent:
 
     Args:
         name (str): The name of the agent.
-        task (AgentTask): The task assigned to the agent.
-        prior_context (str): Any prior context or information given to the agent.
+        task (str): The task assigned to the agent.
+        state (str): Any prior context or information given to the agent.
         model_interface (ModelInterface): The interface for interacting with the language model.
         system_prompts (dict): A dictionary of system prompts for different agent functions.
                                Must include "planning", "action", "review", and "revision" prompts.
@@ -78,41 +77,50 @@ class Agent:
     def __init__(
         self,
         name: str,
-        task: AgentTask,
-        prior_context: str,
+        task: str,
+        state: str,
         model_interface: ModelInterface,
         system_prompts,
         tools: Dict[str, BaseTool] | None,
         verbose,
         max_plan_steps=10,
         ascii_art=None,
+        output_schema: Optional[Dict[str, Any]] = None
     ):
         self.model_interface = model_interface
         self.name = name
         self.task = task
-        self.prior_context = prior_context
+        self.state = state
         self.system_prompts = system_prompts
         self.tools = tools
         self.verbose = verbose
         self.conversation_history = ConversationHistoryEntryList(entries=[])
         self.max_plan_steps = max_plan_steps
         self.ascii_art = ascii_art
+        self.output_schema = output_schema
+        
+        if self.output_schema:
+            self.DynamicOutput = create_model('DynamicOutput', **self.output_schema)
+            self.AgentProcessOutputClass = AgentProcessOutput.with_dynamic_output(self.output_schema)
+        else:
+            self.DynamicOutput = None
+            self.AgentProcessOutputClass = AgentProcessOutput
         
         self.logger = logging.getLogger(f"{self.__class__.__name__}_{self.name}")
         self.logger.setLevel(logging.DEBUG if self.verbose else logging.INFO)
         
         self.loading_animation = LoadingAnimation()
         
-        if self.prior_context:
+        if self.state:
             self.conversation_history.entries.append(ConversationHistoryEntry(
                 agent_name=self.name,
                 heading="Prior Context",
                 timestamp=datetime.now(timezone.utc).isoformat(),
                 model=self.model_interface.model.model_name,
-                content=self.prior_context,
+                content=self.state,
                 content_structure="str"
             ))
-            self.logger.debug(f"Added prior context: {self.prior_context}")
+            self.logger.debug(f"Added prior context: {self.state}")
 
 
     @run_with_loading
@@ -126,12 +134,29 @@ class Agent:
         
         tool_specs = {name: tool.__doc__ for name, tool in self.tools.items()} if self.tools else None
         
-        plan_json = self.model_interface.chat_completion_call(
-            system_prompt=self.system_prompts.get("planning")(
+        # Determine if this is a triage agent
+        is_triage = self.name.lower() == "triage"
+
+        # Prepare the system prompt based on agent type
+        if is_triage:
+            system_prompt = self.system_prompts.get("triage_planning")(
+                max_steps=self.max_plan_steps,
+                available_agents=self.available_agents,
+                output_schema=json.dumps(self.output_schema, indent=2)
+            )
+        else:
+            system_prompt = self.system_prompts.get("planning")(
                 max_steps=self.max_plan_steps,
                 tool_specs=tool_specs
-            ),
-            user_prompt=self.task.as_xml_string(),
+            )
+        
+        # Prepare the user prompt
+        user_prompt = f"Task: Given, {self.state}, do {self.task} please!"
+
+        # Make the model call
+        plan_json = self.model_interface.chat_completion_call(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
             response_format=AgentPlan,
         )
                 
@@ -156,15 +181,21 @@ class Agent:
             step_prompt = f"{accumulated_context}\n\nCurrent step: {step.prompt}"
             
             if self.tools is None or step.tool_name is None or step.tool_name not in self.tools:
-                result_json = self.model_interface.chat_completion_call(
-                    system_prompt="You are a helpful assistant executing a task. Provide the result and a brief explanation.",
-                    user_prompt=f"{step_prompt}\n\nRespond in ToolResponse format with 'output' and 'explanation' fields.",
-                    response_format=ToolResponse
-                )
-                output = ToolResponse(**json.loads(result_json))
+                try:
+                    result_json = self.model_interface.chat_completion_call(
+                        system_prompt="You are a helpful assistant executing a task. Provide the result and a brief explanation.",
+                        user_prompt=f"{step_prompt}",
+                        response_format=ToolResponse
+                    )
+                    if result_json is None or not isinstance(result_json, str):
+                        raise ValueError("Invalid response from model_interface")
+                    output = ToolResponse(**json.loads(result_json))
+                except Exception as e:
+                    self.logger.error(f"Error in chat completion call: {str(e)}")
             else:
                 try:
                     tool = self.tools[step.tool_name]
+                    tool.set_output_schema(self.output_schema)
                     
                     # TODO: make this generic
                     # Check if the tool requires input from a previous step
@@ -208,7 +239,7 @@ class Agent:
         self.logger.debug("Starting review process")
         
         review_prompt = f"""
-        Task: {self.task.as_xml_string()}
+        Task: {self.task}
         
         Output to review:
         {output}
@@ -217,8 +248,17 @@ class Agent:
         Provide detailed feedback, including strengths and areas for improvement.
         """
         
+        # Check if this is the Triage agent
+        if self.name.lower() == "triage":
+            system_prompt = self.system_prompts.get("review")(
+                available_agents=self.available_agents,
+                output_schema=self.output_schema
+            )
+        else:
+            system_prompt = self.system_prompts.get("review")()
+        
         review_result = self.model_interface.chat_completion_call(
-            system_prompt=self.system_prompts.get("review")(),
+            system_prompt=system_prompt,
             user_prompt=review_prompt,
             response_format=AgentReviewVerdict
         )
@@ -235,7 +275,7 @@ class Agent:
         self.logger.debug("Starting plan revision process")
         
         revision_prompt = f"""
-        Original Task: {self.task.as_xml_string()}
+        Original Task: {self.task}
         
         Original Plan:
         {plan.as_formatted_text()}
@@ -266,7 +306,7 @@ class Agent:
         self.logger.debug("Starting output revision process")
         
         revision_prompt = f"""
-        Original Task: {self.task.as_xml_string()}
+        Original Task: {self.task}
         
         Original Output:
         {output}
@@ -280,16 +320,26 @@ class Agent:
         revised_output_json = self.model_interface.chat_completion_call(
             system_prompt=self.system_prompts.get("revise_output")(output),
             user_prompt=revision_prompt,
-            response_format=AgentOutputRevision,
+            response_format=self.DynamicOutput if self.DynamicOutput else AgentOutputRevision,
         )
         
-        return AgentOutputRevision(**json.loads(revised_output_json))
+        return self.DynamicOutput(**json.loads(revised_output_json)) if self.DynamicOutput else AgentOutputRevision(**json.loads(revised_output_json))
 
 
     @add_to_conversation_history
-    def run(self, max_iterations):
+    def run(self, max_iterations, state="", output_schema: Optional[Dict[str, Any]] = None):
         print_ascii_art(self.ascii_art)
         
+        print("STATE TO ADD: ", state)
+        if isinstance(state, str):
+            try:
+                state_dict = json.loads(state)
+                self.state += json.dumps(state_dict, indent=2)
+            except json.JSONDecodeError:
+                self.state += state
+        else:
+            self.state += json.dumps(state, indent=2)
+
         iteration = 0
         plan = self.create_plan()
         output = None
@@ -328,10 +378,13 @@ class Agent:
             
             final_output = self._extract_final_output(final_result)
             
-            return AgentProcessOutput(
+            if self.DynamicOutput:
+                final_output = self.DynamicOutput(**json.loads(final_output))
+            
+            return self.AgentProcessOutputClass(
                 task=self.task,
                 iterations=iteration,
-                final_plan=plan.as_formatted_text(),
+                final_plan=plan.as_list(),
                 final_output=final_output,
                 final_review=final_review
             ).model_dump()
@@ -349,7 +402,23 @@ class Agent:
             return output
         return json.dumps({"error": "No output generated"})
     
+    #for triage agent
+    def set_available_agents(self, available_agents):
+        self.available_agents = available_agents
     
+    def set_triage_attributes(self, available_agents, output_schema):
+        self.available_agents = available_agents
+        self.output_schema = self._make_json_serializable(output_schema)
+
+    def _make_json_serializable(self, obj):
+        if isinstance(obj, dict):
+            return {k: self._make_json_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._make_json_serializable(v) for v in obj]
+        elif isinstance(obj, type):
+            return str(obj)
+        else:
+            return obj
         
 if __name__ == "__main__":
     from dotenv import load_dotenv
@@ -371,16 +440,10 @@ if __name__ == "__main__":
     from literature_reviewer.tools.research_query_generator import ResearchQueryGenerator
     from literature_reviewer.tools.corpus_gatherer import CorpusGatherer
     from literature_reviewer.tools.cluster_analyzer import ClusterAnalyzer
-
-    # agent_task = AgentTask(
-    #     action="generate a list of queries using generate_queries, then gather a related corpus using gather_corpus, then cluster the embedded corpus, and analyze the clusters, outputting a summary of them using analyze_clusters",
-    #     desired_result="a list of queries and an explanation for them, then a list of papers (part of a gathered corpus) found to correspond to each query, finally a summary of the clusters obtained from the embedded text",
-    # )
     
-    agent_task = AgentTask(
-        action="cluster the embedded corpus, and analyze the clusters, outputting a summary of them using analyze_clusters",
-        desired_result="a summary of the clusters obtained from the embedded text",
-    )
+    # agent_task = "cluster the embedded corpus, and analyze the clusters, outputting a summary of them using analyze_clusters",
+    agent_task = "write a plan for how to collect literature sources to do a literature review"
+
 
     model_interface = ModelInterface(
         prompt_framework=PromptFramework.OAI_API,
@@ -452,7 +515,7 @@ if __name__ == "__main__":
     agent = Agent(
         name="Squilliam Fancyson",
         task=agent_task,
-        prior_context="",
+        state="",
         model_interface=model_interface,
         system_prompts=system_prompts,
         tools=tools,
@@ -463,4 +526,8 @@ if __name__ == "__main__":
     
     agent.run(max_iterations=3)
     print_ascii_art(ascii_art=complete_ascii_art)
+
+
+
+
 

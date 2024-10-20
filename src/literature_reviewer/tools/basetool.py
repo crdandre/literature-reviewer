@@ -3,8 +3,8 @@ Base Class for Tools
 All tools must adhere to this interface
 """
 from abc import ABC, abstractmethod
-from typing import Any
-from pydantic import BaseModel
+from typing import Any, Optional, Dict
+from pydantic import BaseModel, create_model
 from pydantic_core import CoreSchema, core_schema
 from rich.console import Group
 from rich.text import Text
@@ -12,7 +12,7 @@ from literature_reviewer.agents.components.model_call import ModelInterface
 
 
 class ToolResponse(BaseModel):
-    output: str
+    output: str #probably has to be a str for response_format purposes
     explanation: str
 
     def as_rich(self) -> Group:
@@ -36,6 +36,8 @@ class BaseTool(ABC):
         self.name = name
         self.description = description
         self.model_interface = model_interface
+        self.output_schema: Optional[Dict[str, Any]] = None
+        self.DynamicOutput: Optional[BaseModel] = None
     
     @abstractmethod
     def use(self, step: Any) -> ToolResponse:
@@ -63,3 +65,10 @@ class BaseTool(ABC):
                 }
             )
         )
+
+    def set_output_schema(self, output_schema: Optional[Dict[str, Any]]):
+        self.output_schema = output_schema
+        if output_schema:
+            self.DynamicOutput = create_model('DynamicOutput', **output_schema)
+        else:
+            self.DynamicOutput = None
