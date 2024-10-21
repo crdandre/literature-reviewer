@@ -8,116 +8,109 @@ Some ideas:
 2. O1 maybe is well-suited to be the meta-agent and relay which tools can be arranged how
 3. Before using a meta-agent, the user is the meta-agent. Start here.
 """
-from typing import TypedDict, List
+from typing import List, Dict, Union
 from langchain_core.documents import Document
 from langgraph.graph import StateGraph, END, START
 from literature_reviewer.agents.agent import Agent
 from literature_reviewer.agents.agency import Agency
 from literature_reviewer.tools.basetool import BaseTool
 import json
-from literature_reviewer.tools.triage import AgentTaskList
-from pydantic import ValidationError
+from literature_reviewer.tools.triage import AgentTaskList, AgentTaskDict
+from pydantic import BaseModel, Field
 
 MAX_ITERATIONS = 3
 TRIAGE = "triage"
 
-def generate_triage_output_schema(agent_names: List[str]):
-    return {name: str for name in agent_names if name != TRIAGE}
+class GraphConfig(BaseModel):
+    max_iterations: int = MAX_ITERATIONS
+    verbose: bool = True
 
-def initialize_graph_state(nodes):
-    fields = {node.name: List[Document] for node in nodes}
-    return TypedDict('State', fields, total=False)
+NodeType = Union[Agent, Agency, BaseTool]
 
-def build_graph(nodes):
-    # Create the State using the initialize_graph_state function
-    State = initialize_graph_state(nodes)
-    state = State()
-    
-    # Initialize the graph with the State
-    graph = StateGraph(State)
+class GraphState(BaseModel):
+    task_list: List[Dict[str, str]] = Field(default_factory=list)
+    node_outputs: Dict[str, List[Document]] = Field(default_factory=dict)
+    completed_tasks: List[str] = Field(default_factory=list)
 
-    # Dictionary to map node names to node functions
-    node_functions = {}
+class CustomJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Document):
+            return {
+                "page_content": obj.page_content,
+                "metadata": obj.metadata
+            }
+        return super().default(obj)
 
-    # Generate the list of available agents once
-    available_agents = [node.name for node in nodes if node.name != TRIAGE]
-
-    # Add nodes dynamically for each node (Agency, Agent, or Tool)
-    for node in nodes:
-        node_name = f"{node.name}_node"
-        if isinstance(node, (Agent, Agency, BaseTool)):
-            def create_node_function(node):
-                def node_function(state):
-                    serialized_state = serialize_state(state)
-                    
-                    # Update task for non-Triage agents based on Triage output
-                    if node.name != TRIAGE and state.get(TRIAGE):
-                        triage_output = json.loads(state[TRIAGE][-1].page_content)
-                        try:
-                            # Extract the task list from the final_output field
-                            task_list_json = json.loads(triage_output['final_output'])
-                            agent_task_list = AgentTaskList.model_validate(task_list_json)
-                            for task in agent_task_list.tasks:
-                                if task.node == node.name:
-                                    node.task = task.task
-                                    print(f"Assigning task to {node.name}: {task.task}")
-                                    break
-                            else:
-                                print(f"No task found for {node.name}")
-                        except (json.JSONDecodeError, ValidationError, KeyError) as e:
-                            print(f"Error parsing Triage output: {e}")
-                            print(f"Triage output: {triage_output}")
-                            # Set a default task if parsing fails
-                            node.task = f"Continue with the original task for {node.name}"
-                    
-                    result = node.run(max_iterations=MAX_ITERATIONS, state=json.dumps(serialized_state))
-                    
-                    return {
-                        node.name: state.get(node.name, []) + [Document(
-                            page_content=json.dumps(result),
-                            metadata={
-                                "node_name": node.name,
-                            }
-                        )]
-                    }
-                return node_function
-            
-            node_functions[node.name] = create_node_function(node)
+def create_node_function(node: NodeType, config: GraphConfig):
+    def node_function(state: GraphState) -> Dict:
+        result = None
+        if node.name == TRIAGE:
+            # Only run triage if task_list is empty
+            if not state.task_list:
+                result = node.run(max_iterations=config.max_iterations, state=json.dumps(state.model_dump(), cls=CustomJSONEncoder))
+                try:
+                    final_output = json.loads(result['final_output'])
+                    state.task_list = final_output['tasks']
+                except (KeyError, TypeError, json.JSONDecodeError) as e:
+                    print(f"Error processing triage result: {e}")
+                    state.task_list = []
         else:
-            raise ValueError(f"Unsupported node type: {type(node)}")
-        
-        graph.add_node(node_name, node_functions[node.name])
+            current_task = next((task for task in state.task_list if task['node'] == node.name and task['node'] not in state.completed_tasks), None)
+            if current_task:
+                node.task = current_task['task']
+                node.context = f"Previous outputs: {json.dumps(state.node_outputs, cls=CustomJSONEncoder)}\nTask: {current_task['task']}"
+                result = node.run(max_iterations=config.max_iterations, state=json.dumps(state.model_dump(), cls=CustomJSONEncoder))
+                state.completed_tasks.append(node.name)
+            else:
+                print(f"No task found for {node.name}. Skipping.")
 
-    # Identify the Triage agent
-    triage_agent = next((node for node in nodes if node.name == TRIAGE), None)
+        if result:
+            state.node_outputs[node.name] = [Document(page_content=json.dumps(result), metadata={"node_name": node.name})]
+        else:
+            print(f"No result generated for node {node.name}")
 
-    # Add edges
-    graph.add_edge(START, f"{triage_agent.name}_node")
+        return state.model_dump()
+    
+    return node_function
+
+def build_graph(nodes: List[NodeType], config: GraphConfig):
+    graph = StateGraph(GraphState)
+
     for node in nodes:
-        if node.name != TRIAGE:
-            graph.add_edge(f"{triage_agent.name}_node", f"{node.name}_node")
+        graph.add_node(node.name, create_node_function(node, config))
 
-    # Define the routing function
-    def routing_function(state):
-        # Check if all nodes have been executed
-        if all(state.get(node.name) for node in nodes):
+    triage_agent = next(node for node in nodes if node.name == TRIAGE)
+
+    graph.add_edge(START, triage_agent.name)
+
+    def conditional_edge_func(state: GraphState):
+        if not state.task_list:
             return END
-        # Find the next node that hasn't been executed yet
-        for node in nodes:
-            if not state.get(node.name):
-                return f"{node.name}_node"
-        # If all nodes have been executed, end the graph
-        return END
+        
+        next_task = next((task for task in state.task_list if task['node'] not in state.completed_tasks), None)
+        if next_task:
+            next_node = next_task['node']
+            return next_node
+        else:
+            return END
 
-    # Add conditional edges from all non-Triage nodes
+    # Connect triage to all other nodes and to END
+    graph.add_conditional_edges(
+        triage_agent.name,
+        conditional_edge_func,
+        {END: END, **{n.name: n.name for n in nodes if n.name != TRIAGE}}
+    )
+
+    # Connect all non-triage nodes back to triage and to END
     for node in nodes:
         if node.name != TRIAGE:
             graph.add_conditional_edges(
-                f"{node.name}_node",
-                routing_function
+                node.name,
+                conditional_edge_func,
+                {END: END, **{n.name: n.name for n in nodes}}
             )
 
-    return graph, State
+    return graph
 
 def serialize_state(state):
     if isinstance(state, dict):
@@ -145,18 +138,19 @@ if __name__ == "__main__":
     context = "write a dialogue between two tardigrades about their reflections on mortality. one page."
     MAX_AGENT_TASKS = 3
     MAX_PLAN_STEPS = 3
-    VERBOSE = True
+    VERBOSE = False
     available_agents=["Researcher", "Writer"]
     
     # Create the Triage agent
     # NOTE: this requires pre-knowledge of the agents ahead of time to specify available_agents
+    # TODO: this should include tool descriptions in available_agents in a dict and the model should be made aware of this
     triage_tool = TriageTool(
         model_interface=model_interface,
         available_agents=available_agents,
         user_goal=context,
         max_tasks=len(available_agents)
     )
-    #basically trying to get this to do a tool call with refiection (one planning step)
+    #basically trying to get this to do a tool call with refiection (one plan step)
     triage = Agent(
         name=TRIAGE,
         task="Generate a task list which assigns a task to each node to achieve the user's goal(s).",
@@ -197,32 +191,47 @@ if __name__ == "__main__":
     nodes = [triage, researcher, writer]
     verbose = False
 
-    graph, State = build_graph(nodes)
+    graph = build_graph(nodes, GraphConfig(verbose=verbose))
     workflow = graph.compile()
 
-    initial_state = State(
-        Triage=[],
-        Researcher=[],
-        Writer=[]
-    )
+    initial_state = GraphState(node_outputs={node.name: [] for node in nodes})
+    final_state = None
 
     print("Starting graph execution...")
 
-    # Execute the workflow and process each step
-    for step in workflow.stream(initial_state):
-        print("\n" + "=" * 22 + "STEP" + "=" * 24)
+    for step in workflow.stream(initial_state.model_dump()):
+        print("\n" + "=" * 50)
         for node, data in step.items():
-            print(f"\033[1;33m{node}:\033[0m")
-            for doc in data.get(node.split('_')[0], []):
-                content = json.loads(doc.page_content)
-                print(f"  \033[1;32mTask:\033[0m {content['task']}")
-                print(f"  \033[1;32mIterations:\033[0m {content['iterations']}")
-                print("  \033[1;32mFinal Plan:\033[0m")
-                for plan_step in content['final_plan']:
-                    print(f"    - {plan_step['step_name']}: {plan_step['action']}")
-                print(f"  \033[1;32mFinal Output:\033[0m {content['final_output']}...")
-                print(f"  \033[1;32mFinal Review:\033[0m {content['final_review']}")
-        print("=" * 50)
-        # You can add more detailed logging or processing here
+            print(f"Node: {node}")
+            print("State keys:")
+            print(f"  Task list: {[task['node'] for task in data.get('task_list', [])]}")
+            print(f"  Node outputs: {list(data.get('node_outputs', {}).keys())}")
+            print(f"  Completed tasks: {data.get('completed_tasks', [])}")
 
-    print("Graph execution completed.")
+        final_state = step  # Update the final_state with each step
+
+    print("\nGraph execution completed.")
+    print("\n"+"="*50)
+    print("\nFinal State:")
+    print(json.dumps(serialize_state(final_state), indent=2))
+    print("\n"+"="*50)
+    
+    last_node = list(final_state.keys())[-1]
+    last_output = final_state[last_node]
+    node_outputs = last_output.get('node_outputs', {})
+    writer_output = node_outputs.get('Writer', [])
+    writer_content = json.loads(writer_output[0]['page_content'])
+    print(f"Final Output:\n{writer_content['final_output']}")
+
+
+
+# Add this function at the end of the file
+def serialize_state(state):
+    if isinstance(state, dict):
+        return {k: serialize_state(v) for k, v in state.items()}
+    elif isinstance(state, list):
+        return [serialize_state(item) for item in state]
+    elif hasattr(state, '__dict__'):
+        return serialize_state(state.__dict__)
+    else:
+        return state
