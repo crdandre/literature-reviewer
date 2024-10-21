@@ -20,12 +20,14 @@ Additions:
 
 Constraints:
 1. [~] Tools are responsible for their own output formats which 
-       adhere to ToolResponse but can extend it
+       adhere to ToolResponse but can extend it. i.e., a tool can internally
+       create any response format, but that should be wrappable by a ToolResponse
+       --> The Agent should be generic for any task. Tools contain the tasks. The 
+           Agent is a means to reflect on the Tool(s) outputs.
 """
 import json, logging, sys
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
-from pydantic import ValidationError, create_model
+from typing import Dict, Any
 
 from literature_reviewer.agents.components.model_call import ModelInterface
 from literature_reviewer.agents.components.agent_pydantic_models import (
@@ -85,7 +87,6 @@ class Agent:
         verbose,
         max_plan_steps=10,
         ascii_art=None,
-        output_schema: Optional[Dict[str, Any]] = None
     ):
         self.model_interface = model_interface
         self.name = name
@@ -97,14 +98,6 @@ class Agent:
         self.conversation_history = ConversationHistoryEntryList(entries=[])
         self.max_plan_steps = max_plan_steps
         self.ascii_art = ascii_art
-        self.output_schema = output_schema
-        
-        if self.output_schema:
-            self.DynamicOutput = create_model('DynamicOutput', **self.output_schema)
-            self.AgentProcessOutputClass = AgentProcessOutput.with_dynamic_output(self.output_schema)
-        else:
-            self.DynamicOutput = None
-            self.AgentProcessOutputClass = AgentProcessOutput
         
         self.logger = logging.getLogger(f"{self.__class__.__name__}_{self.name}")
         self.logger.setLevel(logging.DEBUG if self.verbose else logging.INFO)
@@ -133,23 +126,12 @@ class Agent:
         self.logger.debug("Starting planning process")
         
         tool_specs = {name: tool.__doc__ for name, tool in self.tools.items()} if self.tools else None
-        
-        # Determine if this is a triage agent
-        is_triage = self.name.lower() == "triage"
 
-        # Prepare the system prompt based on agent type
-        if is_triage:
-            system_prompt = self.system_prompts.get("triage_planning")(
-                max_steps=self.max_plan_steps,
-                available_agents=self.available_agents,
-                output_schema=json.dumps(self.output_schema, indent=2)
-            )
-        else:
-            system_prompt = self.system_prompts.get("planning")(
-                max_steps=self.max_plan_steps,
-                tool_specs=tool_specs
-            )
-        
+        system_prompt = self.system_prompts.get("planning")(
+            max_steps=self.max_plan_steps,
+            tool_specs=tool_specs
+        )
+
         # Prepare the user prompt
         user_prompt = f"Task: Given, {self.state}, do {self.task} please!"
 
@@ -166,65 +148,47 @@ class Agent:
     @run_with_loading
     @add_to_conversation_history    
     def enact_plan(self, plan):
-        """
-        Enacts the plan created in create_plan
-        Uses tools described in tool_spec if helpful to enacting the plan
-        
-        Takes each step of the plan, reads the tool used,
-        routes to the appropriate tool for that step
-        """
         results = PlanStepResultList(plan_steps=[])
         accumulated_context = ""
         step_outputs = {}
-
+        
         for step in plan.steps:
             step_prompt = f"{accumulated_context}\n\nCurrent step: {step.prompt}"
             
-            if self.tools is None or step.tool_name is None or step.tool_name not in self.tools:
-                try:
-                    result_json = self.model_interface.chat_completion_call(
-                        system_prompt="You are a helpful assistant executing a task. Provide the result and a brief explanation.",
-                        user_prompt=f"{step_prompt}",
-                        response_format=ToolResponse
-                    )
-                    if result_json is None or not isinstance(result_json, str):
-                        raise ValueError("Invalid response from model_interface")
-                    output = ToolResponse(**json.loads(result_json))
-                except Exception as e:
-                    self.logger.error(f"Error in chat completion call: {str(e)}")
-            else:
-                try:
+            try:
+                if self.tools and step.tool_name in self.tools:
                     tool = self.tools[step.tool_name]
-                    tool.set_output_schema(self.output_schema)
                     
-                    # TODO: make this generic
-                    # Check if the tool requires input from a previous step
+                    # TODO: Make this generic! Passing in prior step info as needed
                     if step.tool_name == 'gather_corpus' and 'generate_queries' in step_outputs:
-                        # Update the tool's search_queries attribute with the output from the previous step
                         tool.search_queries = json.loads(step_outputs['generate_queries'])['queries']
                     
-                    # Pass the updated prompt with accumulated context to the tool
                     step.prompt = step_prompt
                     output = tool.use(step)
-                    
-                    # Store the output for potential use in future steps
                     step_outputs[step.tool_name] = output.output
-                except Exception as e:
-                    self.logger.error(f"Error executing step '{step}' with tool '{step.tool_name}': {str(e)}")
-                    continue
+                else:
+                    # Generic chat completion call
+                    response = self.model_interface.chat_completion_call(
+                        system_prompt="You are a helpful assistant executing a task. Provide the result and a brief explanation",
+                        user_prompt=step_prompt,
+                        response_format=ToolResponse
+                    )
+                    output = ToolResponse(**json.loads(response))
+            except Exception as e:
+                self.logger.error(f"Error executing step '{step}': {str(e)}")
+                output = ToolResponse(
+                    output=f"Error: {str(e)}",
+                    explanation="An error occurred while executing this step."
+                )
             
-            # Pass the ToolResponse object directly
-            step_result = PlanStepResult(plan_step=step, result=output)
-            results.plan_steps.append(step_result)
-            
-            # Update accumulated context with the result of this step
-            accumulated_context += f"\nStep {len(results.plan_steps)} result: {output.output}"
+            results.plan_steps.append(PlanStepResult(plan_step=step, result=output))
+            accumulated_context += f"\nStep {len(results.plan_steps)} result: {self._format_output(output.output)}"
             
             self.logger.info(f"Executed step: {step}")
             self.logger.debug(f"Step result: {output}")
         
         return results
-
+    
 
     @run_with_loading
     @add_to_conversation_history
@@ -248,14 +212,7 @@ class Agent:
         Provide detailed feedback, including strengths and areas for improvement.
         """
         
-        # Check if this is the Triage agent
-        if self.name.lower() == "triage":
-            system_prompt = self.system_prompts.get("review")(
-                available_agents=self.available_agents,
-                output_schema=self.output_schema
-            )
-        else:
-            system_prompt = self.system_prompts.get("review")()
+        system_prompt = self.system_prompts.get("review")()
         
         review_result = self.model_interface.chat_completion_call(
             system_prompt=system_prompt,
@@ -320,17 +277,16 @@ class Agent:
         revised_output_json = self.model_interface.chat_completion_call(
             system_prompt=self.system_prompts.get("revise_output")(output),
             user_prompt=revision_prompt,
-            response_format=self.DynamicOutput if self.DynamicOutput else AgentOutputRevision,
+            response_format=AgentOutputRevision,
         )
         
-        return self.DynamicOutput(**json.loads(revised_output_json)) if self.DynamicOutput else AgentOutputRevision(**json.loads(revised_output_json))
+        return AgentOutputRevision(**json.loads(revised_output_json))
 
 
     @add_to_conversation_history
-    def run(self, max_iterations, state="", output_schema: Optional[Dict[str, Any]] = None):
+    def run(self, max_iterations, state=""):
         print_ascii_art(self.ascii_art)
         
-        print("STATE TO ADD: ", state)
         if isinstance(state, str):
             try:
                 state_dict = json.loads(state)
@@ -378,10 +334,7 @@ class Agent:
             
             final_output = self._extract_final_output(final_result)
             
-            if self.DynamicOutput:
-                final_output = self.DynamicOutput(**json.loads(final_output))
-            
-            return self.AgentProcessOutputClass(
+            return AgentProcessOutput(
                 task=self.task,
                 iterations=iteration,
                 final_plan=plan.as_list(),
@@ -401,25 +354,17 @@ class Agent:
         elif isinstance(output, str):
             return output
         return json.dumps({"error": "No output generated"})
-    
-    #for triage agent
-    def set_available_agents(self, available_agents):
-        self.available_agents = available_agents
-    
-    def set_triage_attributes(self, available_agents, output_schema):
-        self.available_agents = available_agents
-        self.output_schema = self._make_json_serializable(output_schema)
-
-    def _make_json_serializable(self, obj):
-        if isinstance(obj, dict):
-            return {k: self._make_json_serializable(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [self._make_json_serializable(v) for v in obj]
-        elif isinstance(obj, type):
-            return str(obj)
-        else:
-            return obj
         
+    def _format_output(self, output: Any) -> str:
+        if isinstance(output, dict):
+            return json.dumps(output, indent=2)
+        elif isinstance(output, list):
+            return json.dumps(output, indent=2)
+        else:
+            return str(output)    
+
+
+
 if __name__ == "__main__":
     from dotenv import load_dotenv
     load_dotenv()
@@ -526,8 +471,6 @@ if __name__ == "__main__":
     
     agent.run(max_iterations=3)
     print_ascii_art(ascii_art=complete_ascii_art)
-
-
 
 
 

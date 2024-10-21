@@ -8,20 +8,21 @@ Some ideas:
 2. O1 maybe is well-suited to be the meta-agent and relay which tools can be arranged how
 3. Before using a meta-agent, the user is the meta-agent. Start here.
 """
-from typing import TypedDict, List, Dict, Any
-from pydantic import Field
+from typing import TypedDict, List
 from langchain_core.documents import Document
 from langgraph.graph import StateGraph, END, START
 from literature_reviewer.agents.agent import Agent
 from literature_reviewer.agents.agency import Agency
 from literature_reviewer.tools.basetool import BaseTool
-from datetime import datetime, timezone
 import json
+from literature_reviewer.tools.triage import AgentTaskList
+from pydantic import ValidationError
 
 MAX_ITERATIONS = 3
+TRIAGE = "triage"
 
 def generate_triage_output_schema(agent_names: List[str]):
-    return {name: str for name in agent_names if name != "Triage"}
+    return {name: str for name in agent_names if name != TRIAGE}
 
 def initialize_graph_state(nodes):
     fields = {node.name: List[Document] for node in nodes}
@@ -38,18 +39,8 @@ def build_graph(nodes):
     # Dictionary to map node names to node functions
     node_functions = {}
 
-    # Generate the dynamic schema for Triage output
-    triage_output_schema = generate_triage_output_schema([node.name for node in nodes])
-
     # Generate the list of available agents once
-    available_agents = [node.name for node in nodes if node.name != "Triage"]
-
-    # Find the Triage agent and set its attributes
-    triage_agent = next((node for node in nodes if node.name == "Triage"), None)
-    if triage_agent:
-        triage_agent.set_triage_attributes(available_agents, triage_output_schema)
-    else:
-        raise ValueError("Triage agent not found in the nodes list")
+    available_agents = [node.name for node in nodes if node.name != TRIAGE]
 
     # Add nodes dynamically for each node (Agency, Agent, or Tool)
     for node in nodes:
@@ -58,20 +49,34 @@ def build_graph(nodes):
             def create_node_function(node):
                 def node_function(state):
                     serialized_state = serialize_state(state)
-                    result = node.run(max_iterations=MAX_ITERATIONS, state=json.dumps(serialized_state))
                     
                     # Update task for non-Triage agents based on Triage output
-                    if node.name != "Triage" and state.get("Triage"):
-                        triage_output = json.loads(state["Triage"][-1].page_content)
-                        if node.name in triage_output:
-                            node.task = triage_output[node.name]
+                    if node.name != TRIAGE and state.get(TRIAGE):
+                        triage_output = json.loads(state[TRIAGE][-1].page_content)
+                        try:
+                            # Extract the task list from the final_output field
+                            task_list_json = json.loads(triage_output['final_output'])
+                            agent_task_list = AgentTaskList.model_validate(task_list_json)
+                            for task in agent_task_list.tasks:
+                                if task.node == node.name:
+                                    node.task = task.task
+                                    print(f"Assigning task to {node.name}: {task.task}")
+                                    break
+                            else:
+                                print(f"No task found for {node.name}")
+                        except (json.JSONDecodeError, ValidationError, KeyError) as e:
+                            print(f"Error parsing Triage output: {e}")
+                            print(f"Triage output: {triage_output}")
+                            # Set a default task if parsing fails
+                            node.task = f"Continue with the original task for {node.name}"
+                    
+                    result = node.run(max_iterations=MAX_ITERATIONS, state=json.dumps(serialized_state))
                     
                     return {
-                        node.name: state[node.name] + [Document(
+                        node.name: state.get(node.name, []) + [Document(
                             page_content=json.dumps(result),
                             metadata={
                                 "node_name": node.name,
-                                "timestamp": datetime.now(timezone.utc).isoformat()
                             }
                         )]
                     }
@@ -84,14 +89,12 @@ def build_graph(nodes):
         graph.add_node(node_name, node_functions[node.name])
 
     # Identify the Triage agent
-    triage_agent = next((node for node in nodes if node.name == "Triage"), None)
-    if not triage_agent:
-        raise ValueError("Triage agent not found in the nodes list")
+    triage_agent = next((node for node in nodes if node.name == TRIAGE), None)
 
     # Add edges
     graph.add_edge(START, f"{triage_agent.name}_node")
     for node in nodes:
-        if node.name != "Triage":
+        if node.name != TRIAGE:
             graph.add_edge(f"{triage_agent.name}_node", f"{node.name}_node")
 
     # Define the routing function
@@ -108,20 +111,13 @@ def build_graph(nodes):
 
     # Add conditional edges from all non-Triage nodes
     for node in nodes:
-        if node.name != "Triage":
+        if node.name != TRIAGE:
             graph.add_conditional_edges(
                 f"{node.name}_node",
                 routing_function
             )
 
     return graph, State
-
-
-def serialize_document(doc):
-    return {
-        "metadata": doc.metadata,
-        "page_content": doc.page_content
-    }
 
 def serialize_state(state):
     if isinstance(state, dict):
@@ -138,6 +134,7 @@ if __name__ == "__main__":
     from literature_reviewer.agents.components.frameworks_and_models import PromptFramework, Model
     from literature_reviewer.agents.components.prompts.general_agent_system_prompts import general_agent_system_prompts
     from literature_reviewer.agents.components.prompts.triage_agent_system_prompts import triage_agent_system_prompts
+    from literature_reviewer.tools.triage import TriageTool
 
     # Create a simple model interface
     model_interface = ModelInterface(
@@ -145,19 +142,30 @@ if __name__ == "__main__":
         model=Model("gpt-4o-mini", "OpenAI"),
     )
     
-    context = "write a bit about tardigrades."
+    context = "write a dialogue between two tardigrades about their reflections on mortality. one page."
+    MAX_AGENT_TASKS = 3
     MAX_PLAN_STEPS = 3
+    VERBOSE = True
+    available_agents=["Researcher", "Writer"]
     
     # Create the Triage agent
+    # NOTE: this requires pre-knowledge of the agents ahead of time to specify available_agents
+    triage_tool = TriageTool(
+        model_interface=model_interface,
+        available_agents=available_agents,
+        user_goal=context,
+        max_tasks=len(available_agents)
+    )
+    #basically trying to get this to do a tool call with refiection (one planning step)
     triage = Agent(
-        name="Triage",
-        task="Develop tasks for the Researcher and Writer agents based on the given context.",
+        name=TRIAGE,
+        task="Generate a task list which assigns a task to each node to achieve the user's goal(s).",
         state=context,
         model_interface=model_interface,
         system_prompts=triage_agent_system_prompts,
-        tools=None,
-        verbose=True,
-        max_plan_steps=MAX_PLAN_STEPS,
+        tools={"triage": triage_tool},
+        verbose=VERBOSE,
+        max_plan_steps=1,
         ascii_art=None,
     )
 
@@ -169,7 +177,7 @@ if __name__ == "__main__":
         model_interface=model_interface,
         system_prompts=general_agent_system_prompts,
         tools=None,
-        verbose=True,
+        verbose=VERBOSE,
         max_plan_steps=MAX_PLAN_STEPS,
         ascii_art=None,
     )
@@ -181,7 +189,7 @@ if __name__ == "__main__":
         model_interface=model_interface,
         system_prompts=general_agent_system_prompts,
         tools=None,
-        verbose=True,
+        verbose=VERBOSE,
         max_plan_steps=MAX_PLAN_STEPS,
         ascii_art=None,
     )
@@ -202,7 +210,19 @@ if __name__ == "__main__":
 
     # Execute the workflow and process each step
     for step in workflow.stream(initial_state):
-        print(f"Step: {step}")
+        print("\n" + "=" * 22 + "STEP" + "=" * 24)
+        for node, data in step.items():
+            print(f"\033[1;33m{node}:\033[0m")
+            for doc in data.get(node.split('_')[0], []):
+                content = json.loads(doc.page_content)
+                print(f"  \033[1;32mTask:\033[0m {content['task']}")
+                print(f"  \033[1;32mIterations:\033[0m {content['iterations']}")
+                print("  \033[1;32mFinal Plan:\033[0m")
+                for plan_step in content['final_plan']:
+                    print(f"    - {plan_step['step_name']}: {plan_step['action']}")
+                print(f"  \033[1;32mFinal Output:\033[0m {content['final_output']}...")
+                print(f"  \033[1;32mFinal Review:\033[0m {content['final_review']}")
+        print("=" * 50)
         # You can add more detailed logging or processing here
 
     print("Graph execution completed.")
