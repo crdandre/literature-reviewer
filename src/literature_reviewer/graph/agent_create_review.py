@@ -7,6 +7,11 @@ Some ideas:
 1. Meta-agent assembles a team of tools, agents or agencies depending on the task (i.e. any task or subtask can be handled by a tool, agent, or agency)
 2. O1 maybe is well-suited to be the meta-agent and relay which tools can be arranged how
 3. Before using a meta-agent, the user is the meta-agent. Start here.
+
+
+MONDAY TODO: Check that the state is properly updated and passed to each agent
+
+
 """
 from typing import List, Dict, Union
 from langchain_core.documents import Document
@@ -19,7 +24,7 @@ from literature_reviewer.tools.triage import AgentTaskList, AgentTaskDict
 from pydantic import BaseModel, Field
 
 MAX_ITERATIONS = 3
-TRIAGE = "triage"
+TRIAGE = "Triage"
 
 class GraphConfig(BaseModel):
     max_iterations: int = MAX_ITERATIONS
@@ -43,6 +48,9 @@ class CustomJSONEncoder(json.JSONEncoder):
 
 def create_node_function(node: NodeType, config: GraphConfig):
     def node_function(state: GraphState) -> Dict:
+        if node.name not in state.node_outputs:
+            state.node_outputs[node.name] = []
+
         result = None
         if node.name == TRIAGE:
             # Only run triage if task_list is empty
@@ -65,7 +73,7 @@ def create_node_function(node: NodeType, config: GraphConfig):
                 print(f"No task found for {node.name}. Skipping.")
 
         if result:
-            state.node_outputs[node.name] = [Document(page_content=json.dumps(result), metadata={"node_name": node.name})]
+            state.node_outputs[node.name].append(Document(page_content=json.dumps(result), metadata={"node_name": node.name}))
         else:
             print(f"No result generated for node {node.name}")
 
@@ -201,14 +209,14 @@ if __name__ == "__main__":
 
     for step in workflow.stream(initial_state.model_dump()):
         print("\n" + "=" * 50)
-        for node, data in step.items():
-            print(f"Node: {node}")
-            print("State keys:")
-            print(f"  Task list: {[task['node'] for task in data.get('task_list', [])]}")
-            print(f"  Node outputs: {list(data.get('node_outputs', {}).keys())}")
-            print(f"  Completed tasks: {data.get('completed_tasks', [])}")
+        print(f"Current node: {list(step.keys())[0]}")
+        state = GraphState(**step[list(step.keys())[0]])
+        print("State:")
+        print(f"  Task list: {[task['node'] for task in state.task_list]}")
+        print(f"  Node outputs: {list(state.node_outputs.keys())}")
+        print(f"  Completed tasks: {state.completed_tasks}")
 
-        final_state = step  # Update the final_state with each step
+        final_state = state  # Update the final_state with each step
 
     print("\nGraph execution completed.")
     print("\n"+"="*50)
@@ -216,12 +224,13 @@ if __name__ == "__main__":
     print(json.dumps(serialize_state(final_state), indent=2))
     print("\n"+"="*50)
     
-    last_node = list(final_state.keys())[-1]
-    last_output = final_state[last_node]
-    node_outputs = last_output.get('node_outputs', {})
-    writer_output = node_outputs.get('Writer', [])
-    writer_content = json.loads(writer_output[0]['page_content'])
-    print(f"Final Output:\n{writer_content['final_output']}")
+    writer_output = final_state.node_outputs.get('Writer', [])
+    if writer_output:
+        writer_content = json.loads(writer_output[-1].page_content)
+        print(f"Final Output:\n{writer_content['final_output']}")
+    else:
+        print("No output from Writer node found.")
+
 
 
 
