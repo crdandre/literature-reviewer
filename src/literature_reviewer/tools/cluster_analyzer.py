@@ -57,8 +57,6 @@ class ClusterAnalyzer(BaseTool):
         chromadb_path: str = None,
     ):
         super().__init__(
-            name="ClusterAnalyzer",
-            description="Analyzes clusters of research papers to identify themes and summarize findings.",
             model_interface=model_interface
         )
         self.user_goals_text = user_goals_text

@@ -43,8 +43,6 @@ class CorpusGatherer(BaseTool):
         chromadb_path=None,
     ):
         super().__init__(
-            name="Corpus Gatherer",
-            description="Gathers and embeds a corpus of research papers based on search queries",
             model_interface=model_interface
         )
         self.search_queries = search_queries

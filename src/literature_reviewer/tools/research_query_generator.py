@@ -39,8 +39,6 @@ class ResearchQueryGenerator(BaseTool):
         chromadb_path=None,
     ):
         super().__init__(
-            name="Research Query Generator",
-            description="Generates research queries based on user goals and supplied PDFs",
             model_interface=model_interface
         )
         self.user_goals_text = user_goals_text
@@ -55,7 +53,7 @@ class ResearchQueryGenerator(BaseTool):
     def use(self, step: Any) -> ToolResponse:
         queries = self.embed_initial_corpus_get_queries()
         return ToolResponse(
-            output=json.dumps({"queries": queries}),
+            output=json.dumps({"queries": queries}),  # Convert list to JSON string
             explanation="Generated research queries based on user goals and supplied PDFs."
         )
 
@@ -97,7 +95,7 @@ class ResearchQueryGenerator(BaseTool):
         raw_s2_queries = self.search_initial_corpus_for_queries_based_on_goals()
         query_objects = json.loads(raw_s2_queries)
         queries = [obj['query'] for obj in query_objects['s2_queries']]
-        return queries
+        return queries  # This still returns a list of strings directly
 
 
 # Example Usage

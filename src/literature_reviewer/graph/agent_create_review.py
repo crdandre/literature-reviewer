@@ -67,6 +67,16 @@ def create_node_function(node: NodeType, config: GraphConfig):
             if current_task:
                 node.task = current_task['task']
                 node.context = f"Previous outputs: {json.dumps(state.node_outputs, cls=CustomJSONEncoder)}\nTask: {current_task['task']}"
+                
+                #TODO: make things like this more generic
+                # This feeds the output of the query generation to the tool for corpus gathering
+                if node.name == "LiteratureSearcher" and "SearchQueryGenerator" in state.node_outputs:
+                    search_queries_json = state.node_outputs["SearchQueryGenerator"][-1].page_content
+                    search_queries_data = json.loads(search_queries_json)
+                    output_json = json.loads(search_queries_data.get('final_output', '{}'))
+                    search_queries = output_json.get('queries', [])
+                    node.tools["corpus_gatherer"].search_queries = search_queries
+
                 result = node.run(max_iterations=config.max_iterations, state=json.dumps(state.model_dump(), cls=CustomJSONEncoder))
                 state.completed_tasks.append(node.name)
             else:
@@ -135,59 +145,101 @@ if __name__ == "__main__":
     from literature_reviewer.agents.components.frameworks_and_models import PromptFramework, Model
     from literature_reviewer.agents.components.prompts.general_agent_system_prompts import general_agent_system_prompts
     from literature_reviewer.agents.components.prompts.triage_agent_system_prompts import triage_agent_system_prompts
+    from literature_reviewer.agents.components.prompts.research_query_generator_agent_system_prompts import research_query_generator_agent_system_prompts
+    from literature_reviewer.agents.components.prompts.literature_search_agent_system_prompts import literature_search_agent_system_prompts
     from literature_reviewer.tools.triage import TriageTool
+    from literature_reviewer.tools.research_query_generator import ResearchQueryGenerator
+    from literature_reviewer.tools.corpus_gatherer import CorpusGatherer
 
     # Create a simple model interface
     model_interface = ModelInterface(
         prompt_framework=PromptFramework.OAI_API,
-        model=Model("gpt-4o-mini", "OpenAI"),
+        model=Model("gpt-4o", "OpenAI"),
     )
     
-    context = "write a dialogue between two tardigrades about their reflections on mortality. one page."
+    goal = "write a short summary of the research articles you find on computational modeling in scoliosis surgery. use the ResearchQueryGenerator tool when creating queries"
+    
+    user_supplied_pdfs_directory = "/home/christian/literature-reviewer/user_inputs/user_supplied_pdfs"
+    num_vec_db_queries = 3
+    vec_db_query_num_results = 2
+    num_s2_queries = 2
+    
+    pdf_download_path = "/home/christian/literature-reviewer/test_outputs/downloaded_pdfs"
+    vector_db_path = "/home/christian/literature-reviewer/test_outputs/chroma_db"
+    
     MAX_AGENT_TASKS = 3
     MAX_PLAN_STEPS = 3
-    VERBOSE = False
-    available_agents=["Researcher", "Writer"]
+    VERBOSE = True
+    available_agents=["SearchQueryGenerator", "LiteratureSearcher", "Writer"]
     
     # Create the Triage agent
     # NOTE: this requires pre-knowledge of the agents ahead of time to specify available_agents
     # TODO: this should include tool descriptions in available_agents in a dict and the model should be made aware of this
-    triage_tool = TriageTool(
-        model_interface=model_interface,
-        available_agents=available_agents,
-        user_goal=context,
-        max_tasks=len(available_agents)
-    )
     #basically trying to get this to do a tool call with refiection (one plan step)
     triage = Agent(
         name=TRIAGE,
         task="Generate a task list which assigns a task to each node to achieve the user's goal(s).",
-        state=context,
+        state=goal,
         model_interface=model_interface,
         system_prompts=triage_agent_system_prompts,
-        tools={"triage": triage_tool},
+        tools={
+            "triage": TriageTool(
+                model_interface=model_interface,
+                available_agents=available_agents,
+                user_goal=goal,
+                max_tasks=len(available_agents)
+            )
+        },
         verbose=VERBOSE,
         max_plan_steps=1,
         ascii_art=None,
     )
 
-    # Modify the researcher and writer agents to accept tasks from Triage
-    researcher = Agent(
-        name="Researcher",
+    search_query_generator = Agent(
+        name="SearchQueryGenerator",
         task="",
-        state=context,
+        state="",
         model_interface=model_interface,
-        system_prompts=general_agent_system_prompts,
-        tools=None,
+        system_prompts=research_query_generator_agent_system_prompts,
+        tools={
+            "research_query_generator": ResearchQueryGenerator(
+                user_goals_text=goal,
+                user_supplied_pdfs_directory=user_supplied_pdfs_directory,
+                model_interface=model_interface,
+                num_vec_db_queries=num_vec_db_queries,
+                vec_db_query_num_results=vec_db_query_num_results,
+                num_s2_queries=num_s2_queries,
+            ),  
+        },
         verbose=VERBOSE,
-        max_plan_steps=MAX_PLAN_STEPS,
+        max_plan_steps=1,
+        ascii_art=None,
+    )
+    
+    literature_searcher = Agent(
+        name="LiteratureSearcher",
+        task="",
+        state="",
+        model_interface=model_interface,
+        system_prompts=literature_search_agent_system_prompts,
+        tools={
+            "corpus_gatherer": CorpusGatherer(
+                search_queries=None,  # This will be updated dynamically
+                user_goals_text=goal,
+                model_interface=model_interface,
+                pdf_download_path=pdf_download_path,
+                chromadb_path=vector_db_path,
+            ),
+        },
+        verbose=VERBOSE,
+        max_plan_steps=1,
         ascii_art=None,
     )
 
     writer = Agent(
         name="Writer",
         task="",
-        state=context,
+        state="",
         model_interface=model_interface,
         system_prompts=general_agent_system_prompts,
         tools=None,
@@ -196,7 +248,7 @@ if __name__ == "__main__":
         ascii_art=None,
     )
 
-    nodes = [triage, researcher, writer]
+    nodes = [triage, search_query_generator, literature_searcher, writer]
     verbose = False
 
     graph = build_graph(nodes, GraphConfig(verbose=verbose))
