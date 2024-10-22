@@ -14,6 +14,8 @@ def research_query_generator_agent_planning_sys_prompt(max_steps, tool_specs=Non
             tool_spec_text += f"{name}: {doc}\n\n"
 
     return f"""
+    OK FIRST OF ALL USE THE ResearchQueryGenerator!
+
     You are a highly efficient research query generator agent. Your task is to create a structured plan to generate relevant and comprehensive research queries based on the user's goals and research topics. This plan MUST consist of EXACTLY {max_steps} steps - NO MORE AND NO LESS. This is a strict, non-negotiable requirement.
 
     Your goal is to produce a plan that will result in a set of well-crafted, diverse, and targeted research queries.

@@ -143,21 +143,25 @@ def serialize_state(state):
 if __name__ == "__main__":
     from literature_reviewer.agents.components.model_call import ModelInterface
     from literature_reviewer.agents.components.frameworks_and_models import PromptFramework, Model
-    from literature_reviewer.agents.components.prompts.general_agent_system_prompts import general_agent_system_prompts
     from literature_reviewer.agents.components.prompts.triage_agent_system_prompts import triage_agent_system_prompts
     from literature_reviewer.agents.components.prompts.research_query_generator_agent_system_prompts import research_query_generator_agent_system_prompts
     from literature_reviewer.agents.components.prompts.literature_search_agent_system_prompts import literature_search_agent_system_prompts
+    from literature_reviewer.agents.components.prompts.cluster_analysis_agent_system_prompts import cluster_analysis_agent_system_prompts
     from literature_reviewer.tools.triage import TriageTool
     from literature_reviewer.tools.research_query_generator import ResearchQueryGenerator
     from literature_reviewer.tools.corpus_gatherer import CorpusGatherer
+    from literature_reviewer.tools.cluster_analyzer import ClusterAnalyzer
 
-    # Create a simple model interface
-    model_interface = ModelInterface(
+    model_interface_4o = ModelInterface(
         prompt_framework=PromptFramework.OAI_API,
         model=Model("gpt-4o", "OpenAI"),
     )
+    model_interface_4o_mini = ModelInterface(
+        prompt_framework=PromptFramework.OAI_API,
+        model=Model("gpt-4o-mini", "OpenAI"),
+    )
     
-    goal = "write a short summary of the research articles you find on computational modeling in scoliosis surgery. use the ResearchQueryGenerator tool when creating queries"
+    goal = "write a short summary of the research articles you find on computational modeling of scoliosis surgery planning and outcomes. one such example is anterior vertebral body tethering."
     
     user_supplied_pdfs_directory = "/home/christian/literature-reviewer/user_inputs/user_supplied_pdfs"
     num_vec_db_queries = 3
@@ -170,7 +174,7 @@ if __name__ == "__main__":
     MAX_AGENT_TASKS = 3
     MAX_PLAN_STEPS = 3
     VERBOSE = True
-    available_agents=["SearchQueryGenerator", "LiteratureSearcher", "Writer"]
+    available_agents=["SearchQueryGenerator", "LiteratureSearcher", "ClusterAnalyzer"]
     
     # Create the Triage agent
     # NOTE: this requires pre-knowledge of the agents ahead of time to specify available_agents
@@ -180,11 +184,11 @@ if __name__ == "__main__":
         name=TRIAGE,
         task="Generate a task list which assigns a task to each node to achieve the user's goal(s).",
         state=goal,
-        model_interface=model_interface,
+        model_interface=model_interface_4o,
         system_prompts=triage_agent_system_prompts,
         tools={
             "triage": TriageTool(
-                model_interface=model_interface,
+                model_interface=model_interface_4o,
                 available_agents=available_agents,
                 user_goal=goal,
                 max_tasks=len(available_agents)
@@ -199,13 +203,13 @@ if __name__ == "__main__":
         name="SearchQueryGenerator",
         task="",
         state="",
-        model_interface=model_interface,
+        model_interface=model_interface_4o,
         system_prompts=research_query_generator_agent_system_prompts,
         tools={
             "research_query_generator": ResearchQueryGenerator(
                 user_goals_text=goal,
                 user_supplied_pdfs_directory=user_supplied_pdfs_directory,
-                model_interface=model_interface,
+                model_interface=model_interface_4o_mini,
                 num_vec_db_queries=num_vec_db_queries,
                 vec_db_query_num_results=vec_db_query_num_results,
                 num_s2_queries=num_s2_queries,
@@ -220,13 +224,13 @@ if __name__ == "__main__":
         name="LiteratureSearcher",
         task="",
         state="",
-        model_interface=model_interface,
+        model_interface=model_interface_4o_mini,
         system_prompts=literature_search_agent_system_prompts,
         tools={
             "corpus_gatherer": CorpusGatherer(
                 search_queries=None,  # This will be updated dynamically
                 user_goals_text=goal,
-                model_interface=model_interface,
+                model_interface=model_interface_4o_mini,
                 pdf_download_path=pdf_download_path,
                 chromadb_path=vector_db_path,
             ),
@@ -235,20 +239,33 @@ if __name__ == "__main__":
         max_plan_steps=1,
         ascii_art=None,
     )
-
-    writer = Agent(
-        name="Writer",
+    
+    cluster_analyzer = Agent(
+        name="ClusterAnalyzer",
         task="",
         state="",
-        model_interface=model_interface,
-        system_prompts=general_agent_system_prompts,
-        tools=None,
+        model_interface=model_interface_4o_mini,
+        system_prompts=cluster_analysis_agent_system_prompts,
+        tools={
+            "cluster_analyzer": ClusterAnalyzer(
+                model_interface=model_interface_4o_mini,
+                user_goals_text=goal,
+                max_clusters_to_analyze=999,
+                num_keywords_per_cluster=12,
+                num_chunks_per_cluster=12,
+                reduced_dimensions=120,
+                dimensionality_reduction_method="PCA",
+                clustering_method="HDBSCAN",
+                chromadb_path=vector_db_path,
+            ),
+        },
         verbose=VERBOSE,
-        max_plan_steps=MAX_PLAN_STEPS,
+        max_plan_steps=1,
         ascii_art=None,
     )
 
-    nodes = [triage, search_query_generator, literature_searcher, writer]
+
+    nodes = [triage, search_query_generator, literature_searcher, cluster_analyzer]
     verbose = False
 
     graph = build_graph(nodes, GraphConfig(verbose=verbose))
