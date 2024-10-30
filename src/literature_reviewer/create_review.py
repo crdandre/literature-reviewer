@@ -6,15 +6,17 @@ Handles doing tasks, moving around the flow building blocks.
 May it generate useful ideas.
 """
 import argparse, datetime, logging, os
+import controlflow as cf
 from dotenv import load_dotenv
-from literature_reviewer.orchestration import (
-    get_initial_search_queries,
-    gather_the_corpus,
-    cluster_analysis,
-    review_creation
+from literature_reviewer.tools import (
+    cluster_analyzer,
+    corpus_gatherer,
+    research_query_generator,
+    review_author
 )
-from literature_reviewer.components.model_interaction.frameworks_and_models import PromptFramework
+from literature_reviewer.agents.utils.frameworks_and_models import PromptFramework
 
+@cf.flow
 def create_literature_review(
     title: str = "YOU FORGOT TO SPECIFY A TITLE, SILLY",
     model_name: str = "gpt-4o-2024-08-06", #gpt-4o-2024-08-06 or gpt-4o-mini or any openrouter model
@@ -33,7 +35,6 @@ def create_literature_review(
     cluster_analysis_reduced_embedding_dimensionality: int = 120,
     cluster_analyis_dimensionality_reduction_method: str = "PCA",
     cluster_analysis_clustering_method: str = "HDBSCAN",
-    
 ):
     def print_and_confirm_parameters(**kwargs):
         print("Review parameters:")
@@ -73,8 +74,34 @@ def create_literature_review(
     #defaults
     prompt_framework = PromptFramework[os.getenv("DEFAULT_PROMPT_FRAMEWORK")]
 
+
+    """
+    Would this work?
+    
+    Define ProcessStep as a class containing a class type such as ResearchQueryGenerator
+    and a list of arguments as fields in ProcessStep. This makes it doable for the LLM to
+    manipulate process steps(?). ReflectionOperator can be passed in as well. Then all
+    process steps are wrapped in a ReflectionManager maybe to configure the cross-connections
+    
+    Pros: Clean
+    Cons: Pre-determined connections for where reflection occurs.
+    
+    Some bits.
+    WorkflowManager
+    *Task + Reflection Manager?
+    Existing Class
+    
+    All classes get all input params and select from them as they need? Seems like it'd help things flow.
+    
+    0. define model interface(s)
+    1. Define tasks (Specific Tasks inherit base task)
+    2. Define process steps
+    3. define reflection operator
+    4. define workflow manager
+    """
+
     # Get semantic scholar queries
-    query_generator = get_initial_search_queries.ResearchQueryGenerator(
+    query_generator = research_query_generator.ResearchQueryGenerator(
         user_goals_text=user_goals_text,
         user_supplied_pdfs_directory=user_supplied_pdfs_path,
         chunk_size=chunk_size,
@@ -90,7 +117,7 @@ def create_literature_review(
     semantic_scholar_queries = query_generator.embed_initial_corpus_get_queries()
     
     # Initialize and run CorpusGatherer to embed user info/pdfs
-    gather_the_corpus.CorpusGatherer(
+    corpus_gatherer.CorpusGatherer(
         search_queries=semantic_scholar_queries,
         s2_query_response_length_limit=s2_query_response_length_limit,
         user_goals_text=user_goals_text,
@@ -106,7 +133,7 @@ def create_literature_review(
     ).gather_and_embed_corpus()
 
     # Summarize Clusters in reduced-dimension embeddings
-    clusters_summary = cluster_analysis.ClusterAnalyzer(
+    clusters_summary = cluster_analyzer.ClusterAnalyzer(
         user_goals_text=user_goals_text,
         max_clusters_to_analyze=cluster_analyis_max_clusters_to_analyze,
         num_keywords_per_cluster=cluster_analysis_num_keywords_per_cluster,
@@ -121,7 +148,7 @@ def create_literature_review(
     ).perform_full_cluster_analysis()
 
         
-    review_outline = review_creation.ReviewAuthor(
+    review_outline = review_author.ReviewAuthor(
         user_goals_text=user_goals_text,
         multi_cluster_summary=clusters_summary,
         materials_output_path=run_writeup_materials_output_path,

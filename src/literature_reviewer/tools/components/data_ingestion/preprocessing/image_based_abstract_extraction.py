@@ -1,18 +1,16 @@
 import base64, io, json
-from pdf2image import convert_from_path, convert_from_bytes
-from pdf2image.exceptions import (
-    PDFInfoNotInstalledError,
-    PDFPageCountError,
-    PDFSyntaxError
-)
-from literature_reviewer.components.model_interaction.model_call import ModelInterface
-from literature_reviewer.components.model_interaction.frameworks_and_models import PromptFramework, Model
-from literature_reviewer.components.prompts.response_formats import AbstractExtractionResponse
-from literature_reviewer.components.prompts.literature_search_query import generate_abstract_extraction_from_image_sys_prompt
+from pdf2image import convert_from_path
+from literature_reviewer.agents.components.model_call import ModelInterface
+from literature_reviewer.agents.components.frameworks_and_models import PromptFramework, Model
+from literature_reviewer.tools.components.input_output_models.response_formats import AbstractExtractionResponse
+from literature_reviewer.tools.components.prompts.literature_search_query import generate_abstract_extraction_from_image_sys_prompt
 
 
 def extract_abstract_from_pdf(pdf_path: str, model_interface: ModelInterface, page_limit: int=2) -> str | None:
-    images = convert_from_path(pdf_path)
+    try:
+        images = convert_from_path(pdf_path)
+    except Exception as e:
+        return f"Warning: Unable to convert PDF to images. Error: {str(e)}"
     
     abstract = ""
     full_abstract_found = False
@@ -26,7 +24,7 @@ def extract_abstract_from_pdf(pdf_path: str, model_interface: ModelInterface, pa
         system_prompt = generate_abstract_extraction_from_image_sys_prompt()
         user_prompt = f"Please analyze this image (page {page_num + 1}) and fill the AbstractExtractionResponse as requested. If the abstract continues from a previous page, append to it."
         # Call the model to analyze the image and extract the abstract
-        response_json = model_interface.entry_chat_call(
+        response_json = model_interface.chat_completion_call(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             image_string=img_str,
@@ -51,5 +49,6 @@ if __name__ == "__main__":
     abstract = extract_abstract_from_pdf(pdf_path, model_interface)
     print("Extracted Abstract:")
     print(abstract)
+
 
 

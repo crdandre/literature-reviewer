@@ -34,6 +34,9 @@ Temporarily, I'm using langchain/chroma db because YT shows this repeatedly and 
 ## Issues
 - Dependency conflict with ell-ai, langchain, and numpy - the first two have no overlapping versions of the 3rd. Starting with langchain for now...
 
+## Orchestration and Agent Creation
+- Using [`controlflow`](https://github.com/PrefectHQ/ControlFlow)
+
 ## Adjacent Reference Material
 [Texas A&M LibGuide on AI-Based Literature Reviews](https://tamu.libguides.com/c.php?g=1289555)
 [RAG/Agents, Good Article](https://lilianweng.github.io/posts/2023-06-23-agent/)
@@ -106,6 +109,10 @@ Temporarily, I'm using langchain/chroma db because YT shows this repeatedly and 
 - Systematic review publication exclution diagram generation! Important.
 - Grabbing relevant figures from the best papers.
 
+NEW
+- Standardized way to make non OAI models adhere to schema
+- generic state for langgraph
+
 ---
 # Digested To-Do From Above
 ## Overall
@@ -152,3 +159,28 @@ Temporarily, I'm using langchain/chroma db because YT shows this repeatedly and 
 
 ## Output Formatting
 - Given a structured writeup format, fill a template (i.e. arxiv, journal format, etc.). Use a model to evaluate whether the target format has been correctly filled with the output review material.
+
+
+# Oct 4 2024 Considerations
+## Architecture
+- Tasks, Task Manager kind of orchestration. Possible to use custom solution or a package like controlflow (prefect)
+- Where to implement reflection. Use an off-the-shelf agent framework?
+
+## Model Interaction
+- Make the RAG operations more modular to implement new RAG techniques such as [ActiveRAG](https://github.com/OpenMatch/ActiveRAG) to make each piece updateable
+    - [open-retrievals](https://github.com/LongxingTan/open-retrievals) discusses multiple embedding and reranking approaches. more to learn here
+    - generally, refined and reranked vector db is the way to go?
+- Ensure any type of model interaction and any type of reflectin can be added at any point in the workflow
+- Ensure the reasoning process and prompt design decisions are clearly logged so they can be learned from
+- Ideally, make the agents as configurable as possible so that a meta-agent can design and insert agents. I.e. the meta-agent knows the format of each agent it will spawn. Ensure that every hand-created agent is compatible to be replaced with agent design such as that shown in the [ADAS repo](https://github.com/ShengranHu/ADAS)
+- Possible Agent frameworks:
+    - [livekit](https://github.com/ChenLiu-1996/CitationMap)
+    - [controlflow](https://controlflow.ai/concepts/agents)
+    - [show-me](https://github.com/marlaman/show-me)
+    - leaning toward controlflow at the moment, or just custom flows
+
+
+## Corpus Gathering Techniques
+- Vector DB vs Knowledge Graph vs Both (then how to combine them?)
+- Explore other tools for various APIs including arxiv, perplexity, google scholar etc.
+- Explore graph creation tools like [this](https://github.com/ChenLiu-1996/CitationMap) to find chains of work, maybe
