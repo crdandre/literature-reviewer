@@ -15,8 +15,8 @@ pip install -e .
 #to dev
 pip install -e ".[dev]"
 
-#review a topic
-python askdjhalksdjhalksjd.py --topic "why sky blue? you tell Joe."
+#demo review a topic
+python src/literature_reviewer/graph/agent_create_review.py
 
 ```
 
