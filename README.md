@@ -15,6 +15,8 @@ pip install -e .
 #to dev
 pip install -e ".[dev]"
 
+#add .env keys
+
 #demo review a topic
 python src/literature_reviewer/graph/agent_create_review.py
 
