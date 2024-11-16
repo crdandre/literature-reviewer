@@ -141,6 +141,9 @@ def serialize_state(state):
         return state
 
 if __name__ == "__main__":
+    from dotenv import load_dotenv
+    load_dotenv()
+    
     from literature_reviewer.agents.components.model_call import ModelInterface
     from literature_reviewer.agents.components.frameworks_and_models import PromptFramework, Model
     from literature_reviewer.agents.components.prompts.triage_agent_system_prompts import triage_agent_system_prompts
@@ -168,8 +171,8 @@ if __name__ == "__main__":
     vec_db_query_num_results = 2
     num_s2_queries = 2
     
-    pdf_download_path = "/home/christian/literature-reviewer/test_outputs/downloaded_pdfs"
-    vector_db_path = "/home/christian/literature-reviewer/test_outputs/chroma_db"
+    pdf_download_path = "outputs/downloaded_pdfs_test"
+    vector_db_path = "outputs/chromadb_test"
     
     MAX_AGENT_TASKS = 3
     MAX_PLAN_STEPS = 3
@@ -213,6 +216,7 @@ if __name__ == "__main__":
                 num_vec_db_queries=num_vec_db_queries,
                 vec_db_query_num_results=vec_db_query_num_results,
                 num_s2_queries=num_s2_queries,
+                chromadb_path=vector_db_path
             ),  
         },
         verbose=VERBOSE,
