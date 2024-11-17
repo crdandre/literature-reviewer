@@ -6,7 +6,6 @@ Handles doing tasks, moving around the flow building blocks.
 May it generate useful ideas.
 """
 import argparse, datetime, logging, os
-import controlflow as cf
 from dotenv import load_dotenv
 from literature_reviewer.tools import (
     cluster_analyzer,
@@ -14,21 +13,17 @@ from literature_reviewer.tools import (
     research_query_generator,
     review_author
 )
-from literature_reviewer.agents.utils.frameworks_and_models import PromptFramework
+from literature_reviewer.agents.components.frameworks_and_models import PromptFramework
 
-@cf.flow
 def create_literature_review(
+    model_interface,
     title: str = "YOU FORGOT TO SPECIFY A TITLE, SILLY",
-    model_name: str = "gpt-4o-2024-08-06", #gpt-4o-2024-08-06 or gpt-4o-mini or any openrouter model
-    model_provider: str = "OpenAI",
     chunk_size: int = 800,
     chunk_overlap: int = 80,
     vec_db_num_queries_to_create_s2_queries: int = 64,
     vec_db_query_num_results_per_query: int = 32,
     num_s2_queries_to_use: int = 16,
     s2_query_response_length_limit: int = 10,
-    corpus_gatherer_chunks_per_batch: int = 12,
-    corpus_gatherer_inclusion_threshold: float = 0.75,
     cluster_analyis_max_clusters_to_analyze: int = 999,
     cluster_analysis_num_keywords_per_cluster: int = 12,
     cluster_analysis_num_chunks_per_cluster: int = 12,
@@ -70,97 +65,59 @@ def create_literature_review(
     #load user goals
     with open(user_supplid_goal_prompt_path, "r") as file:
         user_goals_text = file.read()
-        
-    #defaults
-    prompt_framework = PromptFramework[os.getenv("DEFAULT_PROMPT_FRAMEWORK")]
-
-
-    """
-    Would this work?
-    
-    Define ProcessStep as a class containing a class type such as ResearchQueryGenerator
-    and a list of arguments as fields in ProcessStep. This makes it doable for the LLM to
-    manipulate process steps(?). ReflectionOperator can be passed in as well. Then all
-    process steps are wrapped in a ReflectionManager maybe to configure the cross-connections
-    
-    Pros: Clean
-    Cons: Pre-determined connections for where reflection occurs.
-    
-    Some bits.
-    WorkflowManager
-    *Task + Reflection Manager?
-    Existing Class
-    
-    All classes get all input params and select from them as they need? Seems like it'd help things flow.
-    
-    0. define model interface(s)
-    1. Define tasks (Specific Tasks inherit base task)
-    2. Define process steps
-    3. define reflection operator
-    4. define workflow manager
-    """
 
     # Get semantic scholar queries
-    query_generator = research_query_generator.ResearchQueryGenerator(
+    semantic_scholar_queries = research_query_generator.ResearchQueryGenerator(
         user_goals_text=user_goals_text,
         user_supplied_pdfs_directory=user_supplied_pdfs_path,
+        model_interface=model_interface,
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
         num_vec_db_queries=vec_db_num_queries_to_create_s2_queries,
         vec_db_query_num_results=vec_db_query_num_results_per_query,
         num_s2_queries=num_s2_queries_to_use,
-        prompt_framework=prompt_framework,
-        model_name=model_name,
-        model_provider=model_provider,
         chromadb_path=run_chromadb_path,
-    )
-    semantic_scholar_queries = query_generator.embed_initial_corpus_get_queries()
+    ).embed_initial_corpus_get_queries()
+    print("QUERIES GENERATED")
     
     # Initialize and run CorpusGatherer to embed user info/pdfs
-    corpus_gatherer.CorpusGatherer(
+    approved_paper_ids = corpus_gatherer.CorpusGatherer(
         search_queries=semantic_scholar_queries,
-        s2_query_response_length_limit=s2_query_response_length_limit,
         user_goals_text=user_goals_text,
+        model_interface=model_interface,
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
-        batch_size=corpus_gatherer_chunks_per_batch,
-        inclusion_threshold=corpus_gatherer_inclusion_threshold,
+        s2_query_response_length_limit=s2_query_response_length_limit,
         pdf_download_path=run_downloaded_pdfs_path,
-        prompt_framework=prompt_framework,
-        model_name=model_name,
-        model_provider=model_provider,
         chromadb_path=run_chromadb_path,
     ).gather_and_embed_corpus()
+    print(f"CORPUS GATHERED. {len(approved_paper_ids)} PAPERS EMBEDDED...")
 
     # Summarize Clusters in reduced-dimension embeddings
     clusters_summary = cluster_analyzer.ClusterAnalyzer(
         user_goals_text=user_goals_text,
+        model_interface=model_interface,
         max_clusters_to_analyze=cluster_analyis_max_clusters_to_analyze,
         num_keywords_per_cluster=cluster_analysis_num_keywords_per_cluster,
         num_chunks_per_cluster=cluster_analysis_num_chunks_per_cluster,
         reduced_dimensions=cluster_analysis_reduced_embedding_dimensionality,
         dimensionality_reduction_method=cluster_analyis_dimensionality_reduction_method,
         clustering_method=cluster_analysis_clustering_method,
-        prompt_framework=prompt_framework,
-        model_name=model_name,
-        model_provider=model_provider,
         chromadb_path=run_chromadb_path,
     ).perform_full_cluster_analysis()
+    print("CLUSTERS ANALYZED")
 
         
     review_outline = review_author.ReviewAuthor(
         user_goals_text=user_goals_text,
         multi_cluster_summary=clusters_summary,
         materials_output_path=run_writeup_materials_output_path,
+        model_interface=model_interface,
         theme_limit=os.getenv("DEFAULT_THEME_LIMIT"),
-        prompt_framework=prompt_framework,
-        model_name=model_name,
-        model_provider=model_provider,
         chromadb_path=run_chromadb_path,
     ).generate_and_save_full_writeup_and_outlines()
-        
-    # Outline to writeup
-    
+    print("REVIEW MANUSCRIPT WRITTEN")
+            
     # Writeup to reviewed writeup
     
     # Reviewed writeup to formatted pdf
@@ -170,6 +127,12 @@ def create_literature_review(
     
 
 if __name__ == "__main__":
+    from dotenv import load_dotenv
+    load_dotenv()
+    from literature_reviewer.agents.components.model_call import ModelInterface
+    from literature_reviewer.agents.components.frameworks_and_models import PromptFramework, Model
+
+    
     # Set up argument parser
     parser = argparse.ArgumentParser(description="Create a literature review")
     parser.add_argument("-t", "--title", type=str, help="Title of the literature review", required=True)
@@ -181,5 +144,15 @@ if __name__ == "__main__":
     # Set logging level
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     
+    model_interface = ModelInterface(
+        prompt_framework=PromptFramework.OAI_API,
+        model=Model("gpt-4o-mini","OpenAI"),
+    )
     # Call create_literature_review with the title argument
-    create_literature_review(title=args.title)
+    create_literature_review(
+        title=args.title,
+        model_interface=model_interface,
+        vec_db_num_queries_to_create_s2_queries = 2,
+        vec_db_query_num_results_per_query = 2,
+        num_s2_queries_to_use = 2,   
+    )

@@ -5,7 +5,7 @@ all that can be found via Semantic Scholar, ideally.
 
 Then, embed that. At this point the database is ready for searching.
 """
-import json, logging
+import json, logging, os
 from literature_reviewer.tools.components.data_ingestion.preprocessing.langchain_extract_from_pdf import LangchainPDFTextExtractor
 from literature_reviewer.tools.components.database_operations.chroma_operations import (
     add_to_chromadb,
@@ -36,7 +36,7 @@ class ResearchQueryGenerator(BaseTool):
         num_vec_db_queries=1,
         vec_db_query_num_results=1,
         num_s2_queries=1,
-        chromadb_path=None,
+        chromadb_path="chroma_db",
     ):
         super().__init__(
             model_interface=model_interface
@@ -49,6 +49,14 @@ class ResearchQueryGenerator(BaseTool):
         self.vec_db_query_num_results = vec_db_query_num_results
         self.num_s2_queries = num_s2_queries
         self.chromadb_path = chromadb_path
+        
+        if not os.path.exists(self.user_supplied_pdfs_directory):
+            os.makedirs(self.user_supplied_pdfs_directory)
+            logging.warning(f"Created new directory for user PDFs at: {self.user_supplied_pdfs_directory}")
+        
+        if self.chromadb_path and not os.path.exists(self.chromadb_path):
+            os.makedirs(self.chromadb_path)
+            logging.warning(f"Created new directory for ChromaDB at: {self.chromadb_path}")
 
     def use(self, step: Any) -> ToolResponse:
         queries = self.embed_initial_corpus_get_queries()
@@ -100,12 +108,14 @@ class ResearchQueryGenerator(BaseTool):
 
 # Example Usage
 if __name__ == "__main__":
+    from dotenv import load_dotenv
+    load_dotenv()
     from literature_reviewer.agents.components.frameworks_and_models import ( #noqa
         PromptFramework, Model
     )    
-    with open("/home/christian/literature-reviewer/user_inputs/goal_prompt.txt", "r") as file:
+    with open("/home/christian/projects/agents/literature-reviewer/user_inputs/goal_prompt.txt", "r") as file:
         user_goals_text = file.read()
-    user_supplied_pdfs_directory = "/home/christian/literature-reviewer/user_inputs/user_supplied_pdfs"
+    user_supplied_pdfs_directory = "/home/christian/projects/agents/literature-reviewer/user_inputs/user_supplied_pdfs"
     num_vec_db_queries = 3
     vec_db_query_num_results = 2
     num_s2_queries = 10
@@ -121,6 +131,7 @@ if __name__ == "__main__":
         num_vec_db_queries=num_vec_db_queries,
         vec_db_query_num_results=vec_db_query_num_results,
         num_s2_queries=num_s2_queries,
+        chromadb_path="outputs/chromadb_test"
     )
 
     result = user_materials_input.use(None)  # Passing None as we don't use the step parameter

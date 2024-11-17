@@ -19,53 +19,68 @@ For now, just searching whole db.
 """
 import os
 import json
-import datetime
+from typing import Any
 
-from literature_reviewer.components.prompts.review_writing import (
+from literature_reviewer.tools.components.prompts.review_writing import (
     generate_review_outline_sys_prompt_basic,
     generate_section_writing_sys_prompt
 )
-from literature_reviewer.components.agents.model_call import ModelInterface
-from literature_reviewer.components.agents.frameworks_and_models import Model
-from literature_reviewer.components.input_output_models.response_formats import StructuredOutlineBasic, SectionWriteup
-from literature_reviewer.components.database_operations.chroma_operations import query_chromadb
+from literature_reviewer.agents.components.model_call import ModelInterface
+from literature_reviewer.agents.components.frameworks_and_models import Model
+from literature_reviewer.tools.components.input_output_models.response_formats import StructuredOutlineBasic, SectionWriteup
+from literature_reviewer.tools.components.database_operations.chroma_operations import query_chromadb
+from literature_reviewer.tools.basetool import BaseTool, ToolResponse
 
 
-class ReviewAuthor:
+class ReviewAuthor(BaseTool):
     def __init__(
         self,
         user_goals_text,
         multi_cluster_summary,
         materials_output_path,
+        model_interface: ModelInterface,
         theme_limit=5,
         refs_found_per_outline_item=3,
-        prompt_framework=None,
-        model_name=None,
-        model_provider=None,
         chromadb_path=None,
     ):
+        super().__init__(model_interface=model_interface)
         self.user_goals_text = user_goals_text
         self.multi_cluster_summary = multi_cluster_summary
         self.materials_output_path = materials_output_path
         self.theme_limit = theme_limit
         self.refs_found_per_outline_item = refs_found_per_outline_item
-        self.prompt_framework = prompt_framework
-        self.model_name = model_name
-        self.model_provider = model_provider
         self.structured_outline = None
         self.chromadb_path = chromadb_path
+
+    def use(self, step: Any) -> ToolResponse:
+        """
+        Implements the abstract method from BaseTool.
+        Generates and saves the full writeup and outlines.
+        """
+        try:
+            self.generate_and_save_full_writeup_and_outlines()
+            
+            return ToolResponse(
+                output="Successfully generated and saved review materials",
+                explanation=f"Generated and saved:\n"
+                           f"- Full writeup at {os.path.join(self.materials_output_path, 'full_writeup.md')}\n"
+                           f"- Enriched outline at {os.path.join(self.materials_output_path, 'enriched_outline.json')}\n"
+                           f"- Initial outline at {os.path.join(self.materials_output_path, 'initial_outline.json')}"
+            )
+        except Exception as e:
+            return ToolResponse(
+                output="Error generating review materials",
+                explanation=f"An error occurred: {str(e)}"
+            )
 
     def create_structured_outline(self):
         """
         Create a structured outline based on the cluster summary and user goals.
         """
         system_prompt = generate_review_outline_sys_prompt_basic(self.user_goals_text)
-        chat_model = Model(self.model_name, self.model_provider)
-        chat_interface = ModelInterface(self.prompt_framework, chat_model)
-
         input_text = f"Cluster Summary:\n{self.multi_cluster_summary}"
         
-        structured_outline = chat_interface.entry_chat_call(
+        structured_outline = self.model_interface.chat_completion_call(
             system_prompt=system_prompt,
             user_prompt=input_text,
             response_format=StructuredOutlineBasic
@@ -108,18 +123,15 @@ class ReviewAuthor:
         for chunk in section_data['relevant_chunks']:
             input_text += f"- {chunk}\n"
 
-        chat_model = Model(self.model_name, self.model_provider)
-        chat_interface = ModelInterface(self.prompt_framework, chat_model)
-
         try:
-            section_content = chat_interface.entry_chat_call(
+            section_content = self.model_interface.chat_completion_call(
                 system_prompt=system_prompt,
                 user_prompt=input_text,
                 response_format=SectionWriteup
             )
             
             # Ensure section_content is a valid JSON string
-            json.loads(section_content)  # This will raise an error if it's not valid JSON
+            json.loads(section_content)
             return section_content
         except Exception as e:
             print(f"Error in write_section for {section_name}: {e}")
@@ -217,20 +229,30 @@ class ReviewAuthor:
 # Example usage
 if __name__ == "__main__":
     from dotenv import load_dotenv
+    from literature_reviewer.agents.components.frameworks_and_models import PromptFramework, Model
     load_dotenv(override=True)
     
     print("Starting review outline creation...")
 
-    with open("/home/christian/literature-reviewer/user_inputs/goal_prompt.txt", "r") as file:
+    with open("user_inputs/goal_prompt.txt", "r") as file:
         user_goals_text = file.read()
     
     multi_cluster_summary = '{"overall_summary_narrative": "The syntheses from the clusters reveal significant insights into the efficacy of scoliosis bracing interventions, particularly for young patients and the potential benefits in adult cases. Key findings underscore the effectiveness of CAD/CAM braces when supplemented with finite element modeling for personalized treatment approaches. However, a notable gap in the literature includes a limited understanding of the mechanisms driving spine growth, which is a critical aspect to explore further. Ethical considerations surrounding research practices such as data availability and participant consent are also noted, though they hold lesser relevance to the user\'s primary focus on scoliosis treatment effectiveness. Overall, while substantial progress has been made in understanding bracing interventions, further exploration is warranted into the foundational biological mechanisms influencing spinal development and the implications of the Hueter-Volkmann Law.", "themes": ["Efficacy of Scoliosis Bracing Interventions", "Ethical Approval and Data Availability in Clinical Research"], "gaps": ["Limited understanding of the specific biological mechanisms that drive spine growth.", "Need for long-term studies analyzing the effects of bracing on adult scoliosis cases."], "unanswered_questions": ["What exactly drives spine growth in patients with scoliosis?", "How does the Hueter-Volkmann Law specifically influence the outcome of bracing interventions?"], "future_directions": ["Investigate the biological underpinnings of spinal growth to better inform treatments for scoliosis.", "Explore longitudinal outcomes of scoliosis bracing in various age groups to establish comprehensive effectiveness metrics."]}'
 
-    ReviewAuthor(
+    # Create model interface
+    model_interface = ModelInterface(
+        prompt_framework=PromptFramework.OAI_API,
+        model=Model("gpt-4o-mini","OpenAI"),
+    )
+    
+    review_author = ReviewAuthor(
         user_goals_text=user_goals_text,
         multi_cluster_summary=multi_cluster_summary,
+        materials_output_path="outputs/test_writing",
+        model_interface=model_interface,
         theme_limit=5
-    ).generate_and_save_full_writeup_and_outlines()
+    )
+    review_author.generate_and_save_full_writeup_and_outlines()
     
     
 
