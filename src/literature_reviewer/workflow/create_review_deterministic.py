@@ -117,9 +117,7 @@ def create_literature_review(
         chromadb_path=run_chromadb_path,
     ).generate_and_save_full_writeup_and_outlines()
     print("REVIEW MANUSCRIPT WRITTEN")
-        
-    # Outline to writeup
-    
+            
     # Writeup to reviewed writeup
     
     # Reviewed writeup to formatted pdf
@@ -154,7 +152,7 @@ if __name__ == "__main__":
     create_literature_review(
         title=args.title,
         model_interface=model_interface,
-        vec_db_num_queries_to_create_s2_queries = 3,
-        vec_db_query_num_results_per_query = 3,
-        num_s2_queries_to_use = 10,   
+        vec_db_num_queries_to_create_s2_queries = 2,
+        vec_db_query_num_results_per_query = 2,
+        num_s2_queries_to_use = 2,   
     )
