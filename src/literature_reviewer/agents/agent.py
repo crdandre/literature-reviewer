@@ -395,15 +395,15 @@ if __name__ == "__main__":
         model=Model("gpt-4o-mini","OpenAI"),
     )
 
-    with open("/home/christian/literature-reviewer/user_inputs/goal_prompt_ais.txt", "r") as file:
+    with open("/home/christian/projects/agents/literature-reviewer/user_inputs/goal_prompt_ais.txt", "r") as file:
         user_goals_text = file.read()
-    user_supplied_pdfs_directory = "/home/christian/literature-reviewer/user_inputs/user_supplied_pdfs"
+    user_supplied_pdfs_directory = "/home/christian/projects/agents/literature-reviewer/user_inputs/user_supplied_pdfs"
     num_vec_db_queries = 3
     vec_db_query_num_results = 2
     num_s2_queries = 2
     
-    pdf_download_path = "/home/christian/literature-reviewer/test_outputs/downloaded_pdfs"
-    vector_db_path = "/home/christian/literature-reviewer/test_outputs/chroma_db"
+    pdf_download_path = "/home/christian/projects/agents/literature-reviewer/test_outputs/downloaded_pdfs"
+    vector_db_path = "/home/christian/projects/agents/literature-reviewer/test_outputs/chroma_db"
 
     
     """

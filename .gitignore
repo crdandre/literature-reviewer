@@ -37,7 +37,9 @@ chroma_db/
 
 # Framework inputs/outputs
 **/framework_outputs/
+**/outputs/
 **/user_inputs/user_supplied_pdfs/*
+**/user_inputs/user_supplied_pdfs_random/*
 !**/user_inputs/user_supplied_pdfs/.gitkeep
 
 old_pre_run_folders/

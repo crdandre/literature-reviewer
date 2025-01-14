@@ -20,7 +20,6 @@ from literature_reviewer.agents.agent import Agent
 from literature_reviewer.agents.agency import Agency
 from literature_reviewer.tools.basetool import BaseTool
 import json
-from literature_reviewer.tools.triage import AgentTaskList, AgentTaskDict
 from pydantic import BaseModel, Field
 
 MAX_ITERATIONS = 3
@@ -166,13 +165,17 @@ if __name__ == "__main__":
     
     goal = "write a short summary of the research articles you find on computational modeling of scoliosis surgery planning and outcomes. one such example is anterior vertebral body tethering."
     
-    user_supplied_pdfs_directory = "/home/christian/literature-reviewer/user_inputs/user_supplied_pdfs"
+    user_supplied_pdfs_directory = "/home/christian/projects/agents/literature-reviewer/user_inputs/user_supplied_pdfs"
     num_vec_db_queries = 3
     vec_db_query_num_results = 2
     num_s2_queries = 2
     
     pdf_download_path = "outputs/downloaded_pdfs_test"
     vector_db_path = "outputs/chromadb_test"
+    # Create output directories if they don't exist
+    import os
+    os.makedirs(pdf_download_path, exist_ok=True)
+    os.makedirs(vector_db_path, exist_ok=True)
     
     MAX_AGENT_TASKS = 3
     MAX_PLAN_STEPS = 3

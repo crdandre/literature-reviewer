@@ -18,10 +18,9 @@ Again, your job is to have exceptional attention to detail and accuracy when par
 [END LLM CONTEXT]
 -----------------------------------------------------------------------------------------------------------------------------------------
 [USER INPUT]
-1<Adolescence is the key time for AIS progression and treatment, before the growth plates close. There are many types of treatment, but spinal fusion is particularly brutal. Some growth-modulating treatments may be better, but are harder to predict and less studied. There are gaps in our understanding of the growth plates and how they can be mechanically and pharmacologically modulated. There are also gaps in the ability to computationally predict the success of treatment for a given approach, whether it be bracing or surgical, such as anterior vertebral body tethering.>
-2<What is the mechanism of action of the growth-modulating scoliosis treatments? How does the growth plate mechanobiology change under stress? I.e., what changes across the structure of the growth plate, cell composition, gene expression, collagen secretion, etc.>
-5<Read on the Hueter-Volkmann Law, and it's role in scoliosis, growth plate mechanobiology, and how it may be applicable to AIS, and how the growth plate may be understood in the context of growth modulation.>
-10<5>
+2<What are the prior efforts made to automatically generate publishable narrative literature reviews in any machine learning related field? What techniques have been used to generate literature reviews, to find papers via API, to cluster the papers and analyze overarching themes, and to generate a narrative from these themes? Has it ever been done automatically end-to-end, would this be novel?>
+5<Read on prior efforts to automately generate publishable narrative literature reviews in any machine learning related field. Write a review detailing the prior efforts, their methodologies, and their results, making sure to connect the themes to understand research gaps, unanswered questions, and areas of opportunity for future research. Draw on your knowledge of prior detailed and technical narrative literature reviews to do this.>
+10<5,2>
 [END USER INPUT]
 
 

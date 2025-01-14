@@ -21,7 +21,6 @@ The weird/confusing bit is that each agent unto itself has reflection capabiliti
 I'm probably banking on sentience arising from hierarchical reflection, or wasting
 credits.
 
-
 One possible way to go about this is:
 Define agents sans what can be determined by a planning agent
 
@@ -138,10 +137,7 @@ if __name__ == "__main__":
     
     max_agent_iterations = 5
     
-    agency_task = AgentTask(
-        action="build an understanding of the growth modulating treatments for adolescent idiopathic scoliosis and the compuational modeling effots made in this area. report back on future research directions. Find and use appropriate reference material, then write an essay using it",
-        desired_result="a short scientific overview of scoliosis treatment via growth modulation and associated compuational modeling techniques",
-    )
+    agency_task = "build an understanding of the growth modulating treatments for adolescent idiopathic scoliosis and the compuational modeling effots made in this area. report back on future research directions. Find and use appropriate reference material, then write an essay using it"
 
     model_interface = ModelInterface(
         prompt_framework=PromptFramework.OAI_API,

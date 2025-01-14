@@ -13,9 +13,6 @@ authors = [
 dependencies = [
     "ascii_magic ~= 2.3.0",
     "backoff ~= 2.2.1",
-    # "controlflow ~= 0.10.0",
-    # "crewai ~= 0.67.1",
-    # "ell-ai ~= 0.0.6",
     "hdbscan ~= 0.8.37",
     "langchain ~= 0.3.0",
     "langchain-chroma ~= 0.1.4",
@@ -31,7 +28,6 @@ dependencies = [
     "chromadb ~= 0.5.11",
     "rich ~= 13.9.2",
     "streamlit ~= 1.38.0",
-    # "tavily-python ~= 0.5.0",
     "umap-learn ~= 0.5.6",
 ]
 
